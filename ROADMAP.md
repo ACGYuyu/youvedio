@@ -6,6 +6,7 @@
 
 ## v0.1.0 — 核心爬虫 + Web UI（当前）
 
+**Python**: 3.12（推荐）| 3.13（兼容）| 避免 3.15 alpha（无预编译 wheel）  
 **目标**: 实现完整的搜索流水线：输入关键词 → 多语言翻译 → 爬取已知种子站 → 分类 → Web 展示
 
 ### 计划内容
@@ -26,7 +27,8 @@
 
 | 日期 | 提交 | 说明 |
 |------|------|------|
-| 2026-06-18 | `feat: scaffold project structure` | 初始化项目骨架 |
+| 2026-06-18 | `feat(scaffold): initial project structure` | 初始化项目骨架 |
+| 2026-06-18 | `style(models): fix Optional→X|None annotations` | Ruff lint 自动修复 |
 
 ---
 

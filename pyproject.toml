@@ -18,8 +18,7 @@ dependencies = [
     "uvicorn[standard]>=0.32.0",
     "jinja2>=3.1.0",
     "httpx>=0.28.0",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
     "click>=8.3.0",
 ]
 
@@ -31,7 +30,6 @@ dev = [
     "pytest-asyncio>=0.25.0",
     "pytest-cov>=6.0.0",
     "pre-commit>=4.0.0",
-    "httpx>=0.28.0",
 ]
 ai = [
     "openai>=1.0.0",
@@ -57,7 +55,6 @@ python_version = "3.10"
 check_untyped_defs = true
 warn_unused_ignores = true
 ignore_missing_imports = true
-# strict = false (gradual typing)
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

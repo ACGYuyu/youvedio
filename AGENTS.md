@@ -2,12 +2,22 @@
 
 YouVedio — 多语言种子/磁力搜索引擎。输入关键词 → DeepSeek 翻译 (中/英/日) → 爬取已知种子站 → 按季/画质分类 → Web 展示。
 
+## Python 版本
+
+**推荐 Python 3.12**（已验证）。Python 3.13 应兼容。避免 Python 3.15 alpha（无预编译 wheel）。
+
 ## 快速开始
 
 ```bash
-pip install -e ".[dev,ai]"     # 安装 + dev 依赖
-pre-commit install              # 安装 git hooks
-python -m youvedio serve        # 启动 Web UI
+py -3.12 -m pip install -e ".[dev,ai]"     # 安装 + dev 依赖
+py -3.12 -m pre_commit install              # 安装 git hooks
+py -3.12 -m youvedio serve                  # 启动 Web UI
+```
+
+如果网络在代理后，先设置环境变量：
+```bash
+$env:HTTP_PROXY="http://127.0.0.1:10808"
+$env:HTTPS_PROXY="http://127.0.0.1:10808"
 ```
 
 ## 开发命令顺序
@@ -15,6 +25,8 @@ python -m youvedio serve        # 启动 Web UI
 ```bash
 ruff check . && ruff format . && mypy src/ && pytest -v
 ```
+
+注意：使用 `py -3.12 -m ruff` / `py -3.12 -m mypy` / `py -3.12 -m pytest` 如果默认 Python 不是 3.12。
 
 ## 项目结构
 
