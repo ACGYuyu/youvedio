@@ -44,13 +44,22 @@ py -3.12 -m youvedio mcp
 py -3.12 -m youvedio mcp --transport sse
 ```
 
-## 安装到你的 OpenCode
+## 安装到你的 MCP 客户端
 
 以下步骤也可让 Agent 自动执行。
 
-### 步骤 1：新建配置
+### 方式一：stdio 模式（本地，推荐）
 
-在任意空目录创建 `opencode.json`：
+MCP 服务器作为本地子进程运行，通过标准输入输出通信。
+
+**安装 Skill：**
+
+```bash
+# 将本项目 skill 复制到你的全局 skill 目录
+cp -r .opencode/skills/youvedio-torrent-search ~/.config/opencode/skills/
+```
+
+**OpenCode 配置（`opencode.json`）：**
 
 ```json
 {
@@ -66,18 +75,65 @@ py -3.12 -m youvedio mcp --transport sse
 }
 ```
 
-### 步骤 2：安装 Skill
+**Claude Desktop 配置（`claude_desktop_config.json`）：**
 
-将本项目 `.opencode/skills/youvedio-torrent-search/` 复制到你的 `.opencode/skills/` 目录：
-
-```bash
-# 从你的项目目录执行
-cp -r .opencode/skills/youvedio-torrent-search ~/.config/opencode/skills/
+```json
+{
+  "mcpServers": {
+    "youvedio": {
+      "command": "py",
+      "args": ["-3.12", "-m", "youvedio", "mcp"],
+      "env": {
+        "HTTP_PROXY": "http://127.0.0.1:10808",
+        "HTTPS_PROXY": "http://127.0.0.1:10808"
+      }
+    }
+  }
+}
 ```
 
-### 步骤 3：启动
+### 方式二：SSE 模式（远程部署）
+
+MCP 服务器部署在远程服务器上，通过 HTTP 访问。
+
+**启动服务器：**
 
 ```bash
+py -3.12 -m youvedio mcp --transport sse
+# 默认监听 http://0.0.0.0:8000
+```
+
+**OpenCode 配置（`opencode.json`）：**
+
+```json
+{
+  "mcp": {
+    "youvedio": {
+      "type": "remote",
+      "url": "http://your-server:8000/sse"
+    }
+  }
+}
+```
+
+**Claude Desktop 配置（`claude_desktop_config.json`）：**
+
+```json
+{
+  "mcpServers": {
+    "youvedio": {
+      "type": "sse",
+      "url": "http://your-server:8000/sse"
+    }
+  }
+}
+```
+
+> SSE 模式需要服务器有公网 IP 或内网穿透。如果服务器有防火墙，需开放 8000 端口。
+
+### 验证连接
+
+启动客户端后，Agent 应能看到 `search_torrents` 工具和 `youvedio://status` 资源。
 opencode
 ```
 
