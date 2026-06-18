@@ -9,7 +9,6 @@
 - **智能分类** — 正则提取季数/画质/字幕组，按最新季→最高清排序
 - **本地缓存** — 10 分钟 TTL，相同关键词秒回
 - **MCP 协议** — 标准 Model Context Protocol，兼容 Claude Desktop / OpenCode 等客户端
-- **可扩展** — 新增站点只需写一个解析器文件
 
 ## 快速开始
 
@@ -22,16 +21,15 @@ pre-commit install
 
 ### 配置
 
-复制 `.env.example` 为 `.env`，填入配置（主要是代理）：
+复制 `.env.example` 为 `.env`，填入代理等配置：
 
 ```bash
 cp .env.example .env
 ```
 
-如果网络在代理后：
+如果网络在代理后，可在 `.env` 中设置或通过环境变量：
 
 ```bash
-# 在 .env 中设置，或终端环境变量：
 $env:HTTP_PROXY="http://127.0.0.1:10808"
 $env:HTTPS_PROXY="http://127.0.0.1:10808"
 ```
@@ -39,14 +37,53 @@ $env:HTTPS_PROXY="http://127.0.0.1:10808"
 ### 启动 MCP Server
 
 ```bash
-# stdio 模式（Claude Desktop）
+# stdio 模式（Claude Desktop / OpenCode）
 py -3.12 -m youvedio mcp
 
 # SSE 模式（HTTP 远程访问）
 py -3.12 -m youvedio mcp --transport sse
 ```
 
-### Claude Desktop 配置
+## 安装到你的 OpenCode
+
+以下步骤也可让 Agent 自动执行。
+
+### 步骤 1：新建配置
+
+在任意空目录创建 `opencode.json`：
+
+```json
+{
+  "mcp": {
+    "youvedio": {
+      "type": "local",
+      "command": ["py", "-3.12", "-m", "youvedio", "mcp"],
+      "environment": {
+        "HTTP_PROXY": "{env:HTTP_PROXY}"
+      }
+    }
+  }
+}
+```
+
+### 步骤 2：安装 Skill
+
+将本项目 `.opencode/skills/youvedio-torrent-search/` 复制到你的 `.opencode/skills/` 目录：
+
+```bash
+# 从你的项目目录执行
+cp -r .opencode/skills/youvedio-torrent-search ~/.config/opencode/skills/
+```
+
+### 步骤 3：启动
+
+```bash
+opencode
+```
+
+Agent 会自动加载 MCP 工具和 skill，然后你可以直接说"我想看XXX"。
+
+### Claude Desktop 配置（备选）
 
 ```json
 {
@@ -93,14 +130,66 @@ py -3.12 -m youvedio mcp --transport sse
 }
 ```
 
-- `seasons` — 按季→画质分组的完整结果
-- `quality_summary` — 快速概览，告诉 Agent 有哪些画质、字幕组、是否有合集包
+| 字段 | 说明 |
+|------|------|
+| `seasons` | 按季→画质分组的完整结果 |
+| `quality_summary` | 快速概览：有哪些画质、字幕组、是否有合集包 |
+| `_unclassified` | 剧场版/OVA/SP（无季度号时出现于此） |
 
 ### Resource
 
 | URI | 说明 |
 |-----|------|
 | `youvedio://status` | 服务器状态和已配置的站点列表 |
+
+## 开发指南
+
+### 环境
+
+```bash
+git clone <repo> && cd youvedio
+pip install -e ".[dev]"
+pre-commit install
+cp .env.example .env
+```
+
+项目根目录的 `opencode.json` 已配置好 MCP 服务器和 AGENTS.md 指令，OpenCode 启动后自动加载。
+
+### 开发循环
+
+```bash
+ruff check . && ruff format . && mypy src/ && pytest -v
+```
+
+因默认 Python 可能不是 3.12，可使用：
+
+```bash
+py -3.12 -m ruff check .
+py -3.12 -m mypy src/
+py -3.12 -m pytest -v
+```
+
+### 代码风格
+
+| 规则 | 约定 |
+|------|------|
+| Lint + Format | Ruff (line-length=100) |
+| 类型检查 | MyPy (渐进式) |
+| 测试 | pytest + asyncio 模式，109 个测试，81% 覆盖率 |
+| 命名 | 类 `PascalCase` / 函数 `snake_case` / 文件小写+下划线 |
+| 提交 | Conventional Commits: `feat(scope): msg` |
+
+### 分支策略
+
+```
+main       ← 稳定分支
+  dev      ← 开发主分支
+    feat/xxx    ← 功能分支
+    fix/xxx     ← 修复分支
+    refactor/xxx ← 重构分支
+```
+
+PR 流程: `feat/xxx` → PR → `dev` → (发布) → `main`
 
 ## 项目结构
 
@@ -109,7 +198,6 @@ src/youvedio/
 ├── mcp_server.py            # MCP 服务入口
 ├── sources/
 │   ├── manager.py           # 站点注册与发现
-│   ├── discoverer.py        # 搜索引擎发现新站点
 │   └── sites/               # 站点解析器（每站一个文件）
 │       ├── base.py          # 解析器基类
 │       ├── nyaa.py          # Nyaa.si
@@ -148,7 +236,6 @@ class YourSiteParser(SiteParser):
         from scrapling.parser import Selector
         doc = Selector(html)
         # 使用 self.css_text / self.css_attr 提取数据
-        # ...
 ```
 
 2. 在 `sources.json` 中注册：
@@ -165,57 +252,11 @@ ruff check . && mypy src/
 
 解析器会自动注册，`search_torrents` 会自动包含新站点。
 
-## 使用 OpenCode 开发
-
-```bash
-# 1. 克隆
-git clone <repo> && cd youvedio
-
-# 2. 安装
-pip install -e ".[dev]"
-pre-commit install
-cp .env.example .env        # 编辑 .env 配置代理
-
-# 3. 启动 MCP Server（终端1）
-py -3.12 -m youvedio mcp
-
-# 4. 启动 OpenCode（终端2，项目目录下）
-opencode
-
-# 5. 开发循环
-# 改代码 → ruff check && format && mypy && pytest
-```
-
-项目根目录的 `opencode.json` 已配置好 MCP 服务器和开发指令，OpenCode 启动后会自动加载。
-
-### 提交规范
-
-```
-feat(nyaa): add season/quality classifier for nyaa.si parser
-fix(dmhy): handle missing seeders field
-refactor(engine): extract base fetcher class
-test(classifier): add season extraction tests
-docs: update README with installation guide
-```
-
-### 分支策略
-
-```
-main       ← 稳定分支
-  dev      ← 开发主分支
-    feat/xxx    ← 功能分支
-    fix/xxx     ← 修复分支
-    refactor/xxx ← 重构分支
-```
-
-PR 流程: `feat/xxx` → PR → `dev` → (发布) → `main`
-
 ## 技术栈
 
-- **Python** 3.12+（推荐 3.12）
+- **Python** 3.12+（推荐 3.12，避免 3.15 alpha）
 - **Scrapling** — 网页爬取与反爬绕过
 - **MCP Python SDK** — Model Context Protocol 实现
-- **httpx** — AI API 调用
 - **Ruff / MyPy / pytest** — 代码质量
 
 ## 许可证
