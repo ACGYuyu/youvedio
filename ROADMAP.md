@@ -19,8 +19,8 @@
 | P4 | 分类器 | Season/画质/格式提取 | ✅ |
 | P5 | 翻译服务 | DeepSeek API (中→英/日) | ✅ |
 | P6 | Web UI | FastAPI + Jinja2 简约搜索页 + 分类 Tab | ✅ |
-| P7 | 搜索引擎发现 | Google/Bing 搜索 → URL 提取 | ⬜ |
-| P8 | AI 站点分析 | DeepSeek 判断站点相关性 | ⬜ |
+| P7 | 搜索引擎发现 | Google/Bing 搜索 → URL 提取 | ✅ |
+| P8 | AI 站点分析 | DeepSeek 判断站点相关性 | ✅ |
 | P9 | 整合联调 | 全流程流水线 | ⬜ |
 
 ### 版本日志
@@ -29,7 +29,7 @@
 |------|------|------|
 | 2026-06-18 | `feat(scaffold): initial project structure` | 初始化项目骨架 |
 | 2026-06-18 | `style(models): fix Optional→X|None annotations` | Ruff lint 自动修复 |
-| 2026-06-18 | `feat: add crawler engine, classifier, translation, Web UI` | P3-P6: 爬虫引擎+分类器+翻译+Web界面 |
+| 2026-06-18 | `feat: add search engine discoverer and AI site analyzer` | P7-P8: 搜索引擎发现 + AI 站点分析 |
 
 ---
 
