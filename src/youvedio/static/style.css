@@ -285,11 +285,39 @@ header {
 
 /* ---- Results ---- */
 .results-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   font-size: 13px;
   color: #86868b;
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid #e8e8ed;
+}
+
+.group-toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.group-btn {
+  padding: 3px 10px;
+  font-size: 12px;
+  border: 1px solid #d2d2d7;
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.group-btn:hover {
+  background: #e8e8ed;
+}
+
+.group-btn.active {
+  background: #0071e3;
+  color: #fff;
+  border-color: #0071e3;
 }
 
 .tabs {

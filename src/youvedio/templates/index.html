@@ -57,7 +57,13 @@
     </div>
 
     <div id="results" class="hidden">
-      <div class="results-meta" id="resultsMeta"></div>
+      <div class="results-meta">
+        <span id="resultsMeta"></span>
+        <div class="group-toggle">
+          <button class="group-btn active" data-group="season" id="groupBySeason">按季</button>
+          <button class="group-btn" data-group="subgroup" id="groupBySubgroup">按字幕组</button>
+        </div>
+      </div>
       <div class="tabs" id="tabs"></div>
       <div class="tab-content" id="tabContent"></div>
     </div>
@@ -236,32 +242,61 @@
       let totalSites = 0;
       let totalQueries = 0;
       let completedSites = 0;
-      let eventSource = null;
+    let lastSearchData = null;  // cached for tab switching
+    let currentGroupBy = 'season';
+
+    // ---- Group toggle ----
+    document.getElementById('groupBySeason').addEventListener('click', function() {
+      if (currentGroupBy === 'season') return;
+      currentGroupBy = 'season';
+      document.querySelectorAll('.group-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.group === 'season'); });
+      if (lastSearchData) renderResults(lastSearchData);
+    });
+
+    document.getElementById('groupBySubgroup').addEventListener('click', function() {
+      if (currentGroupBy === 'subgroup') return;
+      currentGroupBy = 'subgroup';
+      document.querySelectorAll('.group-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.group === 'subgroup'); });
+      if (lastSearchData) renderResults(lastSearchData);
+    });
+
+    // ---- Search (SSE) ----
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const q = input.value.trim();
+      if (!q) return;
+
+      resultsDiv.classList.add('hidden');
+      noResults.classList.add('hidden');
+      errorDiv.classList.add('hidden');
+      progressSection.classList.add('hidden');
+      lastSearchData = null;
+
+      const ai = aiEnhanced.checked;
+      const gb = currentGroupBy;
+      const url = '/api/search/stream?q=' + encodeURIComponent(q) + '&ai_enhanced=' + ai + '&group_by=' + gb;
 
       // Fallback: use regular fetch if SSE doesn't work
       try {
-        eventSource = new EventSource(url);
+        const eventSource = new EventSource(url);
 
         eventSource.addEventListener('progress', (event) => {
           const data = JSON.parse(event.data);
-          totalSites = data.total || totalSites;
-          totalQueries = data.total_queries || totalQueries;
-          
           if (!progressSection.classList.contains('shown')) {
             progressSection.classList.remove('hidden');
             progressSection.classList.add('shown');
-            resetProgress(totalSites * (totalQueries || 1));
+            const total = (data.total || 1) * (data.total_queries || 1);
+            resetProgress(total);
           }
-
           if (data.status === 'fetching') {
             addLog(data.site, 'fetching', '');
-            updateProgress(data.completed, data.total, '正在搜索 ' + data.site + '...');
+            updateProgress(data.completed, data.total, '搜索 ' + data.site + '...');
           } else if (data.status === 'ok') {
             addLog(data.site, 'ok', data.results + ' 条结果');
-            updateProgress(data.completed, data.total, data.completed + ' / ' + data.total + ' 站完成');
+            updateProgress(data.completed, data.total, data.completed + '/' + data.total + ' 站');
           } else if (data.status === 'fail') {
             addLog(data.site, 'fail', data.error || '失败');
-            updateProgress(data.completed, data.total, data.completed + ' / ' + data.total + ' 站完成');
+            updateProgress(data.completed, data.total, data.completed + '/' + data.total + ' 站');
           }
         });
 
@@ -269,40 +304,38 @@
           eventSource.close();
           progressSection.classList.add('hidden');
           progressSection.classList.remove('shown');
-
-          const data = JSON.parse(event.data);
-          if (data.error) {
-            errorDiv.textContent = data.error;
+          lastSearchData = JSON.parse(event.data);
+          if (lastSearchData.error) {
+            errorDiv.textContent = lastSearchData.error;
             errorDiv.classList.remove('hidden');
             return;
           }
-          if (data.total === 0) {
+          if (lastSearchData.total === 0) {
             noResults.classList.remove('hidden');
             return;
           }
-          renderResults(data);
+          renderResults(lastSearchData);
         });
 
         eventSource.addEventListener('error', () => {
           if (eventSource) eventSource.close();
-          // Fallback to regular fetch
-          fallbackSearch(q, ai);
+          fallbackSearch(q, ai, gb);
         });
 
       } catch (err) {
-        fallbackSearch(q, ai);
+        fallbackSearch(q, ai, gb);
       }
     });
 
-    async function fallbackSearch(q, ai) {
+    async function fallbackSearch(q, ai, gb) {
       loading.classList.remove('hidden');
       try {
-        const resp = await fetch('/api/search?q=' + encodeURIComponent(q) + '&ai_enhanced=' + ai);
-        const data = await resp.json();
+        const resp = await fetch('/api/search?q=' + encodeURIComponent(q) + '&ai_enhanced=' + ai + '&group_by=' + gb);
+        lastSearchData = await resp.json();
         loading.classList.add('hidden');
-        if (data.error) { errorDiv.textContent = data.error; errorDiv.classList.remove('hidden'); return; }
-        if (data.total === 0) { noResults.classList.remove('hidden'); return; }
-        renderResults(data);
+        if (lastSearchData.error) { errorDiv.textContent = lastSearchData.error; errorDiv.classList.remove('hidden'); return; }
+        if (lastSearchData.total === 0) { noResults.classList.remove('hidden'); return; }
+        renderResults(lastSearchData);
       } catch (err) {
         loading.classList.add('hidden');
         errorDiv.textContent = '请求失败: ' + err.message;
@@ -312,46 +345,91 @@
 
     function renderResults(data) {
       resultsDiv.classList.remove('hidden');
-      resultsMeta.textContent = '找到 ' + data.total + ' 个结果';
+      var meta = '找到 ' + data.total + ' 个结果';
       if (data.sites_success !== undefined) {
-        resultsMeta.textContent += ' | ' + data.sites_success + '/' + (data.sites_success + data.sites_failed) + ' 站成功';
+        meta += ' | ' + data.sites_success + '/' + (data.sites_success + data.sites_failed) + ' 站成功';
       }
+      document.getElementById('resultsMeta').textContent = meta;
+
       tabs.innerHTML = '';
       tabContent.innerHTML = '';
-      const seasonKeys = Object.keys(data.seasons);
-      if (seasonKeys.length === 0) { tabContent.innerHTML = '<div class="empty">暂无分类数据</div>'; return; }
 
-      const unclassKey = '_unclassified';
-      const hasUnclass = seasonKeys.includes(unclassKey);
-      const normalKeys = seasonKeys.filter(function(k) { return k !== unclassKey; });
-      const allKeys = [].concat(normalKeys);
+      var keys = Object.keys(data.seasons);
+      if (keys.length === 0) { tabContent.innerHTML = '<div class="empty">暂无分类数据</div>'; return; }
+
+      if (currentGroupBy === 'subgroup') {
+        renderSubgroupTabs(data);
+      } else {
+        renderSeasonTabs(data);
+      }
+    }
+
+    function renderSeasonTabs(data) {
+      var keys = Object.keys(data.seasons);
+      var unclassKey = '_unclassified';
+      var hasUnclass = keys.includes(unclassKey);
+      var normalKeys = keys.filter(function(k) { return k !== unclassKey; });
+      var allKeys = [].concat(normalKeys);
       if (hasUnclass) allKeys.push(unclassKey);
 
       allKeys.forEach(function(key, idx) {
         var btn = document.createElement('button');
         btn.className = 'tab-btn' + (idx === 0 ? ' active' : '');
         btn.textContent = key === unclassKey ? '未分类' : key;
-        btn.dataset.season = key;
-        btn.addEventListener('click', function() { switchTab(key, data); });
+        btn.dataset.tabKey = key;
+        btn.addEventListener('click', function() { switchTab(key, data.seasons); });
         tabs.appendChild(btn);
       });
-      switchTab(allKeys[0], data);
+      switchTab(allKeys[0], data.seasons);
     }
 
-    function switchTab(activeKey, data) {
-      document.querySelectorAll('.tab-btn').forEach(function(btn) {
-        btn.classList.toggle('active', btn.dataset.season === activeKey);
+    function renderSubgroupTabs(data) {
+      var keys = Object.keys(data.seasons);
+      keys.forEach(function(sg, idx) {
+        var btn = document.createElement('button');
+        btn.className = 'tab-btn' + (idx === 0 ? ' active' : '');
+        btn.textContent = sg === '_unknown' ? '未知组' : sg;
+        btn.dataset.tabKey = sg;
+        btn.addEventListener('click', function() { renderSubgroupDetail(sg, data.seasons); });
+        tabs.appendChild(btn);
       });
-      var seasonData = data.seasons[activeKey] || {};
+      if (keys.length > 0) renderSubgroupDetail(keys[0], data.seasons);
+    }
+
+    function renderSubgroupDetail(sg, seasons) {
+      document.querySelectorAll('.tab-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.tabKey === sg);
+      });
+      var seasonData = seasons[sg] || {};
       var html = '';
-      var qualityKeys = Object.keys(seasonData);
-      if (qualityKeys.length === 0) {
-        html = '<div class="empty">该分类无结果</div>';
-      } else {
-        qualityKeys.forEach(function(q) {
-          html += '<h3 class="quality-header">' + escapeHtml(q) + '</h3>';
-          html += '<div class="result-list">';
-          seasonData[q].forEach(function(item) { html += renderCard(item); });
+      var seasonKeys = Object.keys(seasonData);
+      if (seasonKeys.length === 0) { tabContent.innerHTML = '<div class="empty">无数据</div>'; return; }
+
+      seasonKeys.forEach(function(sk) {
+        var label = sk === '_unclassified' ? '未分类' : sk;
+        html += '<h3 class="quality-header">' + escapeHtml(label) + '</h3>';
+        var qualityMap = seasonData[sk];
+        Object.keys(qualityMap).forEach(function(q) {
+          html += '<div class="result-list"><div class="result-list-label">' + escapeHtml(q) + '</div>';
+          qualityMap[q].forEach(function(item) { html += renderCard(item); });
+          html += '</div>';
+        });
+      });
+      tabContent.innerHTML = html;
+    }
+
+    function switchTab(tabKey, seasons) {
+      document.querySelectorAll('.tab-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.tabKey === tabKey);
+      });
+      var qualityMap = seasons[tabKey] || {};
+      var html = '';
+      var qKeys = Object.keys(qualityMap);
+      if (qKeys.length === 0) { html = '<div class="empty">无结果</div>'; }
+      else {
+        qKeys.forEach(function(q) {
+          html += '<h3 class="quality-header">' + escapeHtml(q) + '</h3><div class="result-list">';
+          qualityMap[q].forEach(function(item) { html += renderCard(item); });
           html += '</div>';
         });
       }
@@ -359,7 +437,7 @@
     }
 
     function renderCard(item) {
-      var tags = [item.quality, item.source_type].filter(Boolean).join(' ');
+      var tags = [item.quality, item.source_type, item.subgroup].filter(Boolean).join(' ');
       var tagHtml = tags ? '<span class="tags">' + escapeHtml(tags) + '</span>' : '';
       var magnet = item.magnet || '';
       var size = item.size || '';

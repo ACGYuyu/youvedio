@@ -47,6 +47,8 @@ _SOURCE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bAV1\b", re.IGNORECASE), "AV1"),
 ]
 
+_SUBGROUP_PATTERN = re.compile(r"^\[([^\]]+)\]")
+
 
 def _first_match(patterns: list, text: str) -> str | None:
     for p in patterns:
@@ -66,6 +68,11 @@ def _source_match(text: str) -> str | None:
 def classify(result: TorrentResult) -> TorrentResult:
     """Classify a TorrentResult by parsing its title."""
     title = result.title
+
+    # Extract subgroup from [Brackets] at start of title
+    sg = _SUBGROUP_PATTERN.match(title)
+    if sg:
+        result.subgroup = sg.group(1).strip()
 
     season_match = _first_match(_SEASON_PATTERNS, title)
     if season_match:
@@ -91,28 +98,48 @@ def group_by_season(
 ) -> dict[str, dict[str, list[TorrentResult]]]:
     """Group results by season label, then by quality."""
     groups: dict[str, dict[str, list[TorrentResult]]] = {}
-    unclassified: list[TorrentResult] = []
 
     for r in results:
         season_key = f"S{r.season:02d}" if r.season is not None else None
         quality_key = r.quality or "Unknown"
 
         if season_key is None:
-            unclassified.append(r)
+            groups.setdefault("_unclassified", {}).setdefault("All", []).append(r)
             continue
 
-        if season_key not in groups:
-            groups[season_key] = {}
-        if quality_key not in groups[season_key]:
-            groups[season_key][quality_key] = []
-        groups[season_key][quality_key].append(r)
+        groups.setdefault(season_key, {}).setdefault(quality_key, []).append(r)
 
-    # Sort within each group
     for season in groups:
         for quality in groups[season]:
             groups[season][quality].sort(key=lambda x: x.seeders or 0, reverse=True)
 
-    if unclassified:
-        groups["_unclassified"] = {"All": unclassified}
+    return groups
+
+
+def group_by_subgroup(
+    results: list[TorrentResult],
+) -> dict[str, dict[str, dict[str, list[TorrentResult]]]]:
+    """Group results by subgroup → season → quality.
+
+    Returns: {subgroup_name: {season_label: {quality: [results]}}}
+    """
+    groups: dict[str, dict[str, dict[str, list[TorrentResult]]]] = {}
+
+    for r in results:
+        sg = r.subgroup or "_unknown"
+        season_key = f"S{r.season:02d}" if r.season is not None else None
+        quality_key = r.quality or "Unknown"
+
+        groups.setdefault(sg, {})
+
+        if season_key is None:
+            groups[sg].setdefault("_unclassified", {}).setdefault("All", []).append(r)
+        else:
+            groups[sg].setdefault(season_key, {}).setdefault(quality_key, []).append(r)
+
+    for sg in groups:
+        for season in groups[sg]:
+            for quality in groups[sg][season]:
+                groups[sg][season][quality].sort(key=lambda x: x.seeders or 0, reverse=True)
 
     return groups
