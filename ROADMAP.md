@@ -1,13 +1,13 @@
 # YouVedio 版本规划
 
-> 种子/磁力多语言搜索引擎
+> 种子/磁力多语言搜索引擎 MCP Server
 
 ---
 
-## v0.1.0 — 核心爬虫 + Web UI（当前）
+## v0.1.0 — MCP Server（当前）
 
 **Python**: 3.12（推荐）| 3.13（兼容）| 避免 3.15 alpha（无预编译 wheel）  
-**目标**: 实现完整的搜索流水线：输入关键词 → 多语言翻译 → 爬取已知种子站 → 分类 → Web 展示
+**目标**: 实现完整的搜索流水线：输入关键词 → 多语言翻译 → 爬取已知种子站 → 按季/画质分类 → MCP 返回结构化结果
 
 ### 计划内容
 
@@ -34,6 +34,7 @@
 | 2026-06-18 | `feat: add crawler engine, classifier, translation, and Web UI` | P3-P6: 爬虫/分类/翻译/Web |
 | 2026-06-18 | `feat: add search engine discoverer and AI site analyzer` | P7-P8: 发现 + 分析 |
 | 2026-06-18 | `feat(web): add settings page with proxy and AI model config` | 设置界面 |
+| 2026-06-18 | `feat(mcp): add MCP server with search/classify tools` | MCP 服务化 |
 
 ---
 
