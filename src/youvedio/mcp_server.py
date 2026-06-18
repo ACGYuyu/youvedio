@@ -12,13 +12,19 @@ from youvedio.config import settings
 from youvedio.crawler.classifier import classify, group_by_season, relevance_sort
 from youvedio.crawler.engine import CrawlerEngine
 from youvedio.models import TorrentResult
+from youvedio.storage.cache import get as cache_get
+from youvedio.storage.cache import set as cache_set
 
 server = FastMCP(
     name="YouVedio",
     instructions=(
-        "Torrent/magnet search engine for anime and video content. "
-        "Supports multi-language search (Chinese/English/Japanese) via AI translation, "
-        "automatic season/quality classification, and AI-powered result organization."
+        "You are a torrent search assistant. When a user says they want to watch something:\n\n"
+        "1. Call resolve_name first if the name is an abbreviation or vague (e.g. RE0, S1, etc).\n"
+        "2. Call search_torrents with the resolved full name to get torrent results.\n"
+        "3. Call classify_results with the search output to let AI organize by subtitle group.\n"
+        "4. Respond in natural language, format:\n"
+        '   "[SubGroup] → Season X → Quality (count results)"\n\n'
+        "Results are cached automatically, so repeat searches are instant."
     ),
 )
 
@@ -51,9 +57,92 @@ def _seasons_to_json(
 
 
 @server.tool(
+    name="resolve_name",
+    description=(
+        "Resolve an abbreviation or vague name into full search keywords. "
+        "Example: 'RE0' → ['Re:Zero kara Hajimeru Isekai Seikatsu', "
+        "'Re:Zero - Starting Life in Another World', '从零开始的异世界生活']."
+    ),
+)
+def resolve_name(query: str) -> str:
+    """Resolve an abbreviation or partial name to full titles using AI.
+
+    Args:
+        query: Abbreviated or vague name (e.g. "RE0", "S1", "Mushoku").
+
+    Returns:
+        JSON string with original query and resolved candidates.
+    """
+    # Check cache first
+    cache_key = f"resolve:{query.strip().lower()}"
+    cached = cache_get(cache_key, ttl=86400)
+    if cached:
+        return json.dumps(cached, ensure_ascii=False)
+
+    if not settings.deepseek_api_key:
+        fallback = {
+            "original": query,
+            "candidates": [query],
+            "note": "No AI API key configured, using original query.",
+        }
+        return json.dumps(fallback, ensure_ascii=False)
+
+    import httpx
+
+    try:
+        resp = httpx.post(
+            f"{settings.deepseek_base_url.rstrip('/')}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {settings.deepseek_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": settings.deepseek_model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are an anime title resolver. Given an abbreviation or "
+                            "partial name, return a JSON object with the original query "
+                            "and an array of candidate full titles in Chinese, English, "
+                            "and Japanese.\n\n"
+                            'Example: {"original": "RE0", '
+                            '"candidates": ["Re:Zero kara Hajimeru Isekai Seikatsu", '
+                            '"Re:Zero - Starting Life in Another World", '
+                            '"从零开始的异世界生活"]}\n\n'
+                            "Return ONLY valid JSON, no explanation."
+                        ),
+                    },
+                    {"role": "user", "content": query},
+                ],
+                "temperature": 0.1,
+                "max_tokens": 256,
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"]
+
+        import re
+
+        m = re.search(r"\{.*\}", content, re.DOTALL)
+        result = json.loads(m.group(0)) if m else json.loads(content)
+
+        if isinstance(result, dict) and "candidates" in result:
+            cache_set(cache_key, result)
+            return json.dumps(result, ensure_ascii=False)
+    except Exception:
+        pass
+
+    fallback = {"original": query, "candidates": [query]}
+    return json.dumps(fallback, ensure_ascii=False)
+
+
+@server.tool(
     name="search_torrents",
     description=(
         "Search torrent/magnet sites for anime or video content. "
+        "Results are cached for 10 minutes. "
         "Returns results grouped by season and quality. "
         "Set ai_enhanced=false to disable multi-language translation."
     ),
@@ -71,6 +160,12 @@ def search_torrents(
     Returns:
         JSON string with results grouped by season/quality.
     """
+    # Check cache
+    cache_key = f"search:{keyword.strip().lower()}:ai={ai_enhanced}"
+    cached = cache_get(cache_key)
+    if cached:
+        return json.dumps(cached, ensure_ascii=False)
+
     from youvedio.translation import translate_query
 
     settings.apply_proxy()
@@ -100,24 +195,24 @@ def search_torrents(
     classified = [classify(r) for r in all_results]
     seasons = group_by_season(classified)
 
-    return json.dumps(
-        {
-            "keyword": keyword,
-            "total": len(all_results),
-            "sites_success": total_success,
-            "sites_failed": total_failed,
-            "errors": all_errors[:5],
-            "seasons": _seasons_to_json(seasons),
-        },
-        ensure_ascii=False,
-    )
+    payload = {
+        "keyword": keyword,
+        "total": len(all_results),
+        "sites_success": total_success,
+        "sites_failed": total_failed,
+        "errors": all_errors[:5],
+        "seasons": _seasons_to_json(seasons),
+    }
+
+    cache_set(cache_key, payload)
+    return json.dumps(payload, ensure_ascii=False)
 
 
 @server.tool(
     name="classify_results",
     description=(
         "Re-classify search results using AI. "
-        "Groups by subtitle group, newest season first, best quality first. "
+        "Groups by subtitle group (字幕组), newest season first, best quality first. "
         "Input should be the JSON output from search_torrents."
     ),
 )
@@ -163,7 +258,11 @@ def classify_results(results_json: str, keyword: str) -> str:
     classified = [classify(r) for r in raw_results]
     seasons = group_by_season(classified)
     return json.dumps(
-        {"keyword": keyword, "total": len(raw_results), "groups": _seasons_to_json(seasons)},
+        {
+            "keyword": keyword,
+            "total": len(raw_results),
+            "groups": _seasons_to_json(seasons),
+        },
         ensure_ascii=False,
     )
 

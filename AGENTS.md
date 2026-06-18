@@ -86,12 +86,29 @@ src/youvedio/
 |------|------|
 | `search_torrents` | 搜索所有已知种子站，返回按季/画质归类的结果 |
 | `classify_results` | AI 按字幕组→最新季→最高清重新组织结果 |
+| `resolve_name` | 解析缩写/模糊名称为完整标题 (如 "RE0" → Re:Zero) |
 
 ## Resource
 
 | URI | 说明 |
 |-----|------|
 | `youvedio://status` | 服务器状态和配置信息 |
+
+## Agent 工作流
+
+当用户说"我想看XXX"时，Agent 应该：
+
+1. **解析名称** → 调用 `resolve_name` 将缩写转为全称
+2. **搜索** → 用全称调用 `search_torrents`（结果自动缓存 10 分钟）
+3. **AI 归类** → 调用 `classify_results` 按字幕组→最新季→最高清组织
+4. **回复** → 自然语言格式：
+
+```
+[字幕组名] → 第X季 → 画质 (数量)
+示例:
+FBI → 第4季 → 4K (3个), 1080P (12个)
+Erai-raws → 第4季 → 1080P (5个), 720P (2个)
+```
 
 ## Git 规范
 
