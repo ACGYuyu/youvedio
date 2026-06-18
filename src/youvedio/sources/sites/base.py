@@ -1,5 +1,6 @@
 """Base class for torrent site parsers."""
 
+import os
 from abc import ABC, abstractmethod
 
 from scrapling.parser import Selector
@@ -29,13 +30,22 @@ class SiteParser(ABC):
         """Parse search results page HTML into TorrentResult list."""
 
     def _proxies(self) -> dict | None:
-        """Return proxy dict if proxy is enabled and configured."""
-        if settings.proxy_enabled and settings.http_proxy:
-            return {
-                "http": settings.http_proxy,
-                "https": settings.https_proxy or settings.http_proxy,
-            }
-        return None
+        """Return proxy dict: settings proxy > env var > None."""
+        http = (
+            settings.http_proxy
+            or os.environ.get("HTTP_PROXY")
+            or os.environ.get("http_proxy")
+            or ""
+        )
+        https = (
+            settings.https_proxy
+            or os.environ.get("HTTPS_PROXY")
+            or os.environ.get("https_proxy")
+            or ""
+        )
+        if not http:
+            return None
+        return {"http": http, "https": https or http}
 
     def fetch(self, keyword: str) -> list[TorrentResult]:
         """Fetch and parse search results from the site."""
@@ -52,7 +62,8 @@ class SiteParser(ABC):
             if proxy:
                 kwargs["proxies"] = proxy
             resp = Fetcher.get(url, **kwargs)
-            return self.parse(resp.text, source=self.name)
+            html = resp.body.decode(resp.encoding or "utf-8")
+            return self.parse(html, source=self.name)
         except Exception:
             return []
 
@@ -62,11 +73,12 @@ class SiteParser(ABC):
         if handler is None:
             return ""
         val = handler.get()
-        return str(val) if val is not None else ""
+        text = str(val).strip() if val is not None else ""
+        return text
 
     def css_attr(self, el: Selector, css: str, attr: str) -> str:
         """Extract attribute via CSS selector."""
-        handler = el.css(f"{css}::{attr}")
+        handler = el.css(f"{css}::attr({attr})")
         if handler is None:
             return ""
         val = handler.get()
