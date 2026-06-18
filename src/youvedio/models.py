@@ -21,6 +21,7 @@ class TorrentResult(BaseModel):
     episode: int | None = None
     quality: str | None = None
     source_type: str | None = None
+    subgroup: str | None = None
     page_url: str | None = None
     crawled_at: datetime | None = None
 
@@ -37,6 +38,7 @@ class TorrentResult(BaseModel):
         episode: int | None = None,
         quality: str | None = None,
         source_type: str | None = None,
+        subgroup: str | None = None,
         page_url: str | None = None,
     ) -> TorrentResult:
         return TorrentResult(
@@ -51,6 +53,7 @@ class TorrentResult(BaseModel):
             episode=episode,
             quality=quality,
             source_type=source_type,
+            subgroup=subgroup,
             page_url=page_url,
         )
 

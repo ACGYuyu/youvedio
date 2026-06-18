@@ -16,7 +16,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from youvedio.config import settings
-from youvedio.crawler.classifier import classify, group_by_season
+from youvedio.crawler.classifier import classify, group_by_season, group_by_subgroup
 from youvedio.crawler.engine import CrawlerEngine
 from youvedio.models import TorrentResult
 from youvedio.translation import translate_query
@@ -57,6 +57,7 @@ def _torrent_to_dict(r: TorrentResult) -> dict:
         "episode": r.episode,
         "quality": r.quality or "",
         "source_type": r.source_type or "",
+        "subgroup": r.subgroup or "",
         "page_url": r.page_url or "",
     }
 
@@ -68,16 +69,30 @@ def _sse_event(name: str, data: dict) -> str:
 
 def _build_seasons_dict(
     all_results: list[TorrentResult],
-) -> dict[str, dict[str, list[dict]]]:
-    """Classify and group results into seasons dict."""
+    by: str = "season",
+) -> dict:
+    """Classify and group results. by='season' or 'subgroup'."""
     classified = [classify(r) for r in all_results]
-    seasons = group_by_season(classified)
-    seasons_dict: dict[str, dict[str, list[dict]]] = {}
-    for season_key, quality_map in seasons.items():
-        seasons_dict[season_key] = {}
-        for quality_key, items in quality_map.items():
-            seasons_dict[season_key][quality_key] = [_torrent_to_dict(r) for r in items]
-    return seasons_dict
+
+    def _to_dicts(items: list[TorrentResult]) -> list[dict]:
+        return [_torrent_to_dict(r) for r in items]
+
+    if by == "subgroup":
+        raw_sg = group_by_subgroup(classified)
+        result: dict = {}
+        for sg, seasons in raw_sg.items():
+            result[sg] = {}
+            for season_key, quality_map in seasons.items():
+                result[sg][season_key] = {
+                    q: _to_dicts(items) for q, items in quality_map.items()
+                }
+        return result
+
+    raw_sn = group_by_season(classified)
+    result = {}
+    for sk, qm in raw_sn.items():
+        result[sk] = {q: _to_dicts(items) for q, items in qm.items()}
+    return result
 
 
 def _get_queries(q: str, ai_enhanced: bool) -> list[str]:
@@ -119,12 +134,16 @@ async def index(request: Request):
 
 
 @app.get("/api/search")
-async def api_search(q: str = Query(""), ai_enhanced: bool = Query(True)):
+async def api_search(
+    q: str = Query(""),
+    ai_enhanced: bool = Query(True),
+    group_by: str = Query("season"),
+):
     if not q.strip():
         return JSONResponse({"keyword": q, "total": 0, "seasons": {}})
 
     all_results, total_success, total_failed, all_errors = _run_crawl(q, ai_enhanced)
-    seasons_dict = _build_seasons_dict(all_results)
+    seasons_dict = _build_seasons_dict(all_results, by=group_by)
 
     return JSONResponse(
         {
@@ -139,7 +158,11 @@ async def api_search(q: str = Query(""), ai_enhanced: bool = Query(True)):
 
 
 @app.get("/api/search/stream")
-async def api_search_stream(q: str = Query(""), ai_enhanced: bool = Query(True)):
+async def api_search_stream(
+    q: str = Query(""),
+    ai_enhanced: bool = Query(True),
+    group_by: str = Query("season"),
+):
     """SSE endpoint that streams crawl progress and final results."""
 
     async def event_stream() -> AsyncGenerator[str, None]:
@@ -214,7 +237,7 @@ async def api_search_stream(q: str = Query(""), ai_enhanced: bool = Query(True))
                         },
                     )
 
-        seasons_dict = _build_seasons_dict(all_results)
+        seasons_dict = _build_seasons_dict(all_results, by=group_by)
         yield _sse_event(
             "result",
             {
