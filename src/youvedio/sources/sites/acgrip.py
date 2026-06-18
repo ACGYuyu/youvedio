@@ -12,7 +12,7 @@ class AcgRipParser(SiteParser):
     lang = "zh"
 
     def search_url(self, keyword: str) -> str:
-        return f"{self.base_url}/search/{keyword}"
+        return f"{self.base_url}/?term={keyword}"
 
     def parse(self, html: str, source: str | None = None) -> list[TorrentResult]:
         from scrapling.parser import Selector
@@ -21,16 +21,26 @@ class AcgRipParser(SiteParser):
         results: list[TorrentResult] = []
         source = source or self.name
 
-        for row in doc.css("table.ui.striped.table > tbody > tr"):
+        for row in doc.css("table.table-hover.table-condensed tr"):
             try:
-                title = self.css_text(row, "td:nth-child(2) a::text")
-                if not title:
+                tds = row.css("td")
+                if len(tds) < 4:
                     continue
 
-                page_url = self.extract_page_url(self.css_attr(row, "td:nth-child(2) a", "href"))
-                magnet = self.css_attr(row, "a[href^='magnet:']", "href")
-                size = self.normalize_size(self.css_text(row, "td:nth-child(3)::text"))
-                seeders = self.safe_int(self.css_text(row, "td:nth-child(4)::text"))
+                title_el = row.css("td:nth-child(2) a:last-child")
+                raw = title_el.css("::text").get()
+                title = str(raw).strip() if raw else ""
+                if not title:
+                    continue
+                if len(title) < 3:
+                    continue
+
+                page_url = self.extract_page_url(
+                    self.css_attr(row, "td:nth-child(2) a:last-child", "href")
+                )
+
+                magnet = self.css_attr(row, "td:nth-child(3) a", "href")
+                size = self.normalize_size(self.css_text(row, "td:nth-child(4)::text"))
                 info_hash = self.extract_info_hash(magnet)
 
                 results.append(
@@ -40,7 +50,6 @@ class AcgRipParser(SiteParser):
                         magnet=magnet,
                         info_hash=info_hash,
                         size=size,
-                        seeders=seeders,
                         page_url=page_url,
                     )
                 )
