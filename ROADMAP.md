@@ -14,34 +14,28 @@
 | 阶段 | 模块 | 文件 | 状态 |
 |------|------|------|------|
 | P1 | 项目脚手架 | `pyproject.toml`, `config.py`, `models.py`, `__main__.py`, CLI | ✅ |
-| P2 | 内置站点解析器 | `base.py`, `nyaa.py`, `dmhy.py`, `mikan.py`, `x1337.py`, `acgrip.py`, `anidex.py`, `tokyotosho.py` | ✅ |
-| P3 | 爬虫引擎 | Scrapling 封装 + 并发 + 重试 | ✅ |
+| P2 | 内置站点解析器 | 7 个站点解析器 | ✅ |
+| P3 | 爬虫引擎 | Scrapling 并发爬虫 + 重试 | ✅ |
 | P4 | 分类器 | Season/画质/字幕组提取 + quality_summary | ✅ |
-| P5 | | |
-| P6 | | |
-| P7 | 搜索引擎发现 | Google/Bing 搜索 → URL 提取 | ✅ |
-| P8 | | |
-| P9 | 整合优化 | 缓存 + MCP 纯净化 + quality_summary | ✅ |
+| P5 | 搜索引擎发现 | Google/Bing 搜索 → URL 提取 | ✅ |
+| P6 | 整合优化 | 缓存 + MCP 服务 + 测试 109 个 81% 覆盖率 | ✅ |
 
 ### 版本日志
 
 | 日期 | 提交 | 说明 |
 |------|------|------|
 | 2026-06-18 | `feat(scaffold): initial project structure` | 初始化项目骨架 |
-| 2026-06-18 | `style(models): fix Optional→X|None annotations` | Ruff lint 自动修复 |
 | 2026-06-18 | `feat(sources): add 7 built-in site parsers` | 站点解析器基类 + 7 个内置站 |
 | 2026-06-18 | `feat(crawler): add crawler engine with retry and title classifier` | 爬虫引擎 + 分类器 |
-| 2026-06-18 | `feat: add crawler engine, classifier, translation, and Web UI` | P3-P6: 爬虫/分类/翻译/Web |
-| 2026-06-18 | `feat: add search engine discoverer and AI site analyzer` | P7-P8: 发现 + 分析 |
-| 2026-06-18 | `feat(web): add settings page with proxy and AI model config` | 设置界面 |
-| 2026-06-18 | `refactor: remove all AI components, pure data MCP` | 去掉 AI，纯爬虫工具 |
+| 2026-06-18 | `feat: add search engine discoverer` | 搜索引擎发现 |
+| 2026-06-18 | `feat: MCP server, remove AI/Web, pure data MCP` | MCP 服务化 |
+| 2026-06-18 | `feat: quality_summary, cache, test coverage 81%` | 优化 + 测试 |
 
 ---
 
 ## v0.2.0 — 待规划
 
-- 站点发现与自动入库
-- 搜索结果缓存
+- 搜索结果缓存优化
 - 批量关键词搜索
 - Docker 部署
 
