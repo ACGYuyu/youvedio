@@ -1,0 +1,9 @@
+[
+    {"name": "nyaa.si",     "url": "https://nyaa.si",            "lang": "en", "enabled": true},
+    {"name": "dmhy.org",    "url": "https://dmhy.org",           "lang": "zh", "enabled": true},
+    {"name": "mikanani.me", "url": "https://mikanani.me",         "lang": "zh", "enabled": true},
+    {"name": "1337x.to",    "url": "https://1337x.to",            "lang": "en", "enabled": true},
+    {"name": "acg.rip",     "url": "https://acg.rip",             "lang": "zh", "enabled": true},
+    {"name": "anidex.info", "url": "https://anidex.info",          "lang": "en", "enabled": true},
+    {"name": "tokyotosho.info", "url": "https://tokyotosho.info", "lang": "en", "enabled": true}
+]

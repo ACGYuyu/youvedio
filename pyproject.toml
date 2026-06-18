@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "youvedio"
+version = "0.1.0"
+description = "多语言种子/磁力搜索引擎"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "YouVedio Team"}
+]
+license = {text = "MIT"}
+dependencies = [
+    "scrapling>=0.4.9",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "jinja2>=3.1.0",
+    "httpx>=0.28.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "click>=8.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.9.0",
+    "mypy>=1.14.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "pre-commit>=4.0.0",
+    "httpx>=0.28.0",
+]
+ai = [
+    "openai>=1.0.0",
+]
+
+[project.urls]
+Repository = "https://github.com/Administrator/YouVedio"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["youvedio*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "ARG"]
+
+[tool.mypy]
+python_version = "3.10"
+check_untyped_defs = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+# strict = false (gradual typing)
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"
