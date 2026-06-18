@@ -122,3 +122,10 @@ Erai-raws → 第4季 → 1080P (5个), 720P (2个)
 ## 版本规划
 
 详见 [ROADMAP.md](./ROADMAP.md)。当前版本 **v0.1.0** — MCP Server。
+
+## 添加新站点流程
+
+1. 在 `src/youvedio/sources/sites/` 下新建 `<name>.py`
+2. 继承 `SiteParser`，实现 `search_url()` 和 `parse()` 方法
+3. 在 `sources.json` 中注册
+4. 运行 `ruff check . && mypy src/` 验证
