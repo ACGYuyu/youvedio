@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
+from collections.abc import AsyncGenerator
 from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -58,6 +61,56 @@ def _torrent_to_dict(r: TorrentResult) -> dict:
     }
 
 
+def _sse_event(name: str, data: dict) -> str:
+    """Format an SSE event string."""
+    return f"event: {name}\ndata: {json.dumps(data)}\n\n"
+
+
+def _build_seasons_dict(
+    all_results: list[TorrentResult],
+) -> dict[str, dict[str, list[dict]]]:
+    """Classify and group results into seasons dict."""
+    classified = [classify(r) for r in all_results]
+    seasons = group_by_season(classified)
+    seasons_dict: dict[str, dict[str, list[dict]]] = {}
+    for season_key, quality_map in seasons.items():
+        seasons_dict[season_key] = {}
+        for quality_key, items in quality_map.items():
+            seasons_dict[season_key][quality_key] = [_torrent_to_dict(r) for r in items]
+    return seasons_dict
+
+
+def _get_queries(q: str, ai_enhanced: bool) -> list[str]:
+    """Build list of search queries (with translations if AI enabled)."""
+    unique: list[str] = [q]
+    if ai_enhanced:
+        translations = translate_query(q)
+        for k in ("zh", "en", "ja"):
+            val = translations.get(k, "")
+            if val and val not in unique:
+                unique.append(val)
+    return unique[:3]
+
+
+def _run_crawl(q: str, ai_enhanced: bool) -> tuple[list[TorrentResult], int, int, list[str]]:
+    """Run the crawl synchronously (blocking)."""
+    settings.apply_proxy()
+    engine = CrawlerEngine(max_concurrent=settings.crawler_max_concurrent)
+    all_results: list[TorrentResult] = []
+    total_success = 0
+    total_failed = 0
+    all_errors: list[str] = []
+
+    for query in _get_queries(q, ai_enhanced):
+        progress = engine.search(query)
+        all_results.extend(progress.results)
+        total_success += progress.success
+        total_failed += progress.failed
+        all_errors.extend(progress.errors)
+
+    return all_results, total_success, total_failed, all_errors
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     if templates:
@@ -66,38 +119,12 @@ async def index(request: Request):
 
 
 @app.get("/api/search")
-async def api_search(q: str = Query("")):
+async def api_search(q: str = Query(""), ai_enhanced: bool = Query(True)):
     if not q.strip():
         return JSONResponse({"keyword": q, "total": 0, "seasons": {}})
 
-    settings.apply_proxy()
-    translations = translate_query(q)
-    unique_queries: list[str] = []
-    for val in [q] + [translations.get(k, "") for k in ("zh", "en", "ja")]:
-        if val and val not in unique_queries:
-            unique_queries.append(val)
-
-    engine = CrawlerEngine(max_concurrent=settings.crawler_max_concurrent)
-    all_results: list[TorrentResult] = []
-    total_success = 0
-    total_failed = 0
-    all_errors: list[str] = []
-
-    for query in unique_queries[:3]:
-        progress = engine.search(query)
-        all_results.extend(progress.results)
-        total_success += progress.success
-        total_failed += progress.failed
-        all_errors.extend(progress.errors)
-
-    classified = [classify(r) for r in all_results]
-    seasons = group_by_season(classified)
-
-    seasons_dict: dict[str, dict[str, list[dict]]] = {}
-    for season_key, quality_map in seasons.items():
-        seasons_dict[season_key] = {}
-        for quality_key, items in quality_map.items():
-            seasons_dict[season_key][quality_key] = [_torrent_to_dict(r) for r in items]
+    all_results, total_success, total_failed, all_errors = _run_crawl(q, ai_enhanced)
+    seasons_dict = _build_seasons_dict(all_results)
 
     return JSONResponse(
         {
@@ -111,15 +138,113 @@ async def api_search(q: str = Query("")):
     )
 
 
+@app.get("/api/search/stream")
+async def api_search_stream(q: str = Query(""), ai_enhanced: bool = Query(True)):
+    """SSE endpoint that streams crawl progress and final results."""
+
+    async def event_stream() -> AsyncGenerator[str, None]:
+        if not q.strip():
+            yield _sse_event("result", {"keyword": q, "total": 0, "seasons": {}})
+            return
+
+        settings.apply_proxy()
+        queries = _get_queries(q, ai_enhanced)
+        loop = asyncio.get_event_loop()
+
+        all_results: list[TorrentResult] = []
+        total_success = 0
+        total_failed = 0
+        all_errors: list[str] = []
+
+        for qidx, query in enumerate(queries):
+            engine = CrawlerEngine(max_concurrent=settings.crawler_max_concurrent)
+            parsers = list(engine.source_manager.enabled_parsers.items())
+            sites_done = 0
+            total_sites = len(parsers)
+            total_queries = len(queries)
+
+            for name, parser in parsers:
+                yield _sse_event(
+                    "progress",
+                    {
+                        "site": name,
+                        "status": "fetching",
+                        "completed": sites_done,
+                        "total": total_sites,
+                        "queries_done": qidx,
+                        "total_queries": total_queries,
+                    },
+                )
+
+                def _run(p, kw):
+                    return p.fetch(kw)
+
+                try:
+                    results = await loop.run_in_executor(None, _run, parser, query)
+                    classified = [classify(r) for r in results]
+                    all_results.extend(classified)
+                    total_success += 1 if results else 0
+                    sites_done += 1
+                    yield _sse_event(
+                        "progress",
+                        {
+                            "site": name,
+                            "status": "ok",
+                            "results": len(results),
+                            "completed": sites_done,
+                            "total": total_sites,
+                            "queries_done": qidx,
+                            "total_queries": total_queries,
+                        },
+                    )
+                except Exception as e:
+                    total_failed += 1
+                    all_errors.append(f"{name}: {e}")
+                    sites_done += 1
+                    yield _sse_event(
+                        "progress",
+                        {
+                            "site": name,
+                            "status": "fail",
+                            "error": str(e)[:60],
+                            "completed": sites_done,
+                            "total": total_sites,
+                            "queries_done": qidx,
+                            "total_queries": total_queries,
+                        },
+                    )
+
+        seasons_dict = _build_seasons_dict(all_results)
+        yield _sse_event(
+            "result",
+            {
+                "keyword": q,
+                "total": len(all_results),
+                "sites_success": total_success,
+                "sites_failed": total_failed,
+                "errors": all_errors,
+                "seasons": seasons_dict,
+            },
+        )
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @app.get("/api/settings")
 async def get_settings():
-    """Return current settings (with API key masked)."""
     return JSONResponse(settings.to_dict())
 
 
 @app.post("/api/settings")
 async def update_settings(payload: SettingsPayload):
-    """Update settings at runtime."""
     settings.update(**payload.model_dump())
     settings.apply_proxy()
     return JSONResponse({"ok": True, **settings.to_dict()})
@@ -135,7 +260,6 @@ async def search_page(request: Request, q: str = Query("")):
 
 
 def run_server() -> None:
-    """Start uvicorn server."""
     uvicorn.run(
         "youvedio.web:app",
         host=settings.server_host,

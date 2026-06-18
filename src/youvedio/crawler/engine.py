@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from youvedio.crawler.classifier import classify
@@ -45,8 +46,16 @@ class CrawlerEngine:
         self,
         keyword: str,
         site_names: list[str] | None = None,
+        on_progress: Callable[[str, str, int, int], None] | None = None,
     ) -> CrawlProgress:
-        """Search all (or specified) sites for a keyword."""
+        """Search all (or specified) sites for a keyword.
+
+        Args:
+            keyword: Search term.
+            site_names: Optional list of site names to restrict search.
+            on_progress: Optional callback(name, status, completed, total).
+                status is one of: 'fetching', 'ok', 'fail'.
+        """
         parsers = self.source_manager.enabled_parsers
         if site_names:
             parsers = {n: p for n, p in parsers.items() if n in site_names}
@@ -55,16 +64,21 @@ class CrawlerEngine:
         all_results: list[TorrentResult] = []
 
         for name, parser in parsers.items():
+            if on_progress:
+                on_progress(name, "fetching", progress.completed, progress.total_sites)
             try:
                 results = self._fetch_with_retry(parser, keyword)
                 classified = [classify(r) for r in results]
                 all_results.extend(classified)
                 progress.success += 1
                 progress.results_found += len(results)
+                if on_progress:
+                    on_progress(name, "ok", progress.completed + 1, progress.total_sites)
             except Exception as e:
                 progress.failed += 1
                 progress.errors.append(f"{name}: {e}")
-                logger.warning("Failed to fetch %s: %s", name, e)
+                if on_progress:
+                    on_progress(name, "fail", progress.completed + 1, progress.total_sites)
             finally:
                 progress.completed += 1
 
