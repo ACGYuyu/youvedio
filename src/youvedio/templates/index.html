@@ -23,12 +23,33 @@
         <input type="text" name="q" id="q" placeholder="输入动漫/剧集名称..." autofocus>
         <button type="submit">搜索</button>
       </div>
-      <div class="lang-tags">
-        <span>中文</span>
-        <span>English</span>
-        <span>日本語</span>
+      <div class="search-options">
+        <label class="ai-toggle">
+          <input type="checkbox" id="aiEnhanced" checked>
+          <span class="toggle-slider"></span>
+          <span class="toggle-label">AI 增强</span>
+        </label>
+        <div class="lang-tags">
+          <span>中文</span>
+          <span>English</span>
+          <span>日本語</span>
+        </div>
       </div>
     </form>
+
+    <!-- Progress section (visible during search) -->
+    <div id="progressSection" class="progress-section hidden">
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-info">
+        <span id="progressText">准备中...</span>
+        <button class="log-toggle" id="logToggle">查看日志</button>
+      </div>
+      <div class="log-container hidden" id="logContainer">
+        <div class="log-list" id="logList"></div>
+      </div>
+    </div>
 
     <div id="loading" class="loading hidden">
       <div class="spinner"></div>
@@ -51,9 +72,7 @@
   <!-- Settings Dialog -->
   <dialog id="settingsDialog">
     <div class="dialog-content">
-      <div class="dialog-header">
-        <h2>设置</h2>
-      </div>
+      <div class="dialog-header"><h2>设置</h2></div>
       <div class="dialog-body">
         <div class="settings-section">
           <h3>🔌 代理配置</h3>
@@ -104,6 +123,43 @@
     const tabs = document.getElementById('tabs');
     const tabContent = document.getElementById('tabContent');
     const resultsMeta = document.getElementById('resultsMeta');
+    const aiEnhanced = document.getElementById('aiEnhanced');
+
+    // ---- Progress & Log ----
+    const progressSection = document.getElementById('progressSection');
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
+    const logToggle = document.getElementById('logToggle');
+    const logContainer = document.getElementById('logContainer');
+    const logList = document.getElementById('logList');
+
+    logToggle.addEventListener('click', () => {
+      logContainer.classList.toggle('hidden');
+      logToggle.textContent = logContainer.classList.contains('hidden') ? '查看日志' : '隐藏日志';
+    });
+
+    function addLog(site, status, detail) {
+      const item = document.createElement('div');
+      item.className = 'log-item log-' + status;
+      const time = new Date().toLocaleTimeString();
+      const icon = status === 'ok' ? '✅' : status === 'fail' ? '❌' : '🔄';
+      item.textContent = time + ' ' + icon + ' ' + site + (detail ? ' — ' + detail : '');
+      logList.appendChild(item);
+      logList.scrollTop = logList.scrollHeight;
+    }
+
+    function resetProgress(total) {
+      progressSection.classList.remove('hidden');
+      progressFill.style.width = '0%';
+      progressText.textContent = '0 / ' + total + ' 站';
+      logList.innerHTML = '';
+    }
+
+    function updateProgress(completed, total, text) {
+      const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+      progressFill.style.width = Math.min(pct, 100) + '%';
+      progressText.textContent = text || (completed + ' / ' + total + ' 站');
+    }
 
     // ---- Settings ----
     const settingsBtn = document.getElementById('settingsBtn');
@@ -131,23 +187,12 @@
         apiKey.value = '';
         baseUrl.value = settingsData.deepseek_base_url || 'https://api.deepseek.com/v1';
         modelName.value = settingsData.deepseek_model || 'deepseek-chat';
-      } catch (e) {
-        console.error('Failed to load settings', e);
-      }
+      } catch (e) { console.error('Failed to load settings', e); }
     }
 
-    settingsBtn.addEventListener('click', () => {
-      loadSettings();
-      settingsDialog.showModal();
-    });
-
-    cancelBtn.addEventListener('click', () => {
-      settingsDialog.close();
-    });
-
-    settingsDialog.addEventListener('click', (e) => {
-      if (e.target === settingsDialog) settingsDialog.close();
-    });
+    settingsBtn.addEventListener('click', () => { loadSettings(); settingsDialog.showModal(); });
+    cancelBtn.addEventListener('click', () => { settingsDialog.close(); });
+    settingsDialog.addEventListener('click', (e) => { if (e.target === settingsDialog) settingsDialog.close(); });
 
     saveBtn.addEventListener('click', async () => {
       const payload = {
@@ -158,7 +203,6 @@
         deepseek_base_url: baseUrl.value.trim(),
         deepseek_model: modelName.value.trim(),
       };
-
       try {
         const resp = await fetch('/api/settings', {
           method: 'POST',
@@ -166,71 +210,116 @@
           body: JSON.stringify(payload),
         });
         const data = await resp.json();
-        if (data.ok) {
-          saveStatus.textContent = '已保存';
-          saveStatus.className = 'save-status success';
-          setTimeout(() => { saveStatus.className = 'save-status'; }, 2000);
-        } else {
-          saveStatus.textContent = '保存失败';
-          saveStatus.className = 'save-status error';
-        }
+        saveStatus.textContent = data.ok ? '已保存' : '保存失败';
+        saveStatus.className = 'save-status ' + (data.ok ? 'success' : 'error');
+        setTimeout(() => { saveStatus.className = 'save-status'; }, 2000);
       } catch (e) {
         saveStatus.textContent = '保存失败: ' + e.message;
         saveStatus.className = 'save-status error';
       }
     });
 
-    // ---- Search ----
+    // ---- Search (SSE) ----
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const q = input.value.trim();
       if (!q) return;
 
-      loading.classList.remove('hidden');
       resultsDiv.classList.add('hidden');
       noResults.classList.add('hidden');
       errorDiv.classList.add('hidden');
+      progressSection.classList.add('hidden');
 
+      // Start SSE search
+      const ai = aiEnhanced.checked;
+      const url = '/api/search/stream?q=' + encodeURIComponent(q) + '&ai_enhanced=' + ai;
+      let totalSites = 0;
+      let totalQueries = 0;
+      let completedSites = 0;
+      let eventSource = null;
+
+      // Fallback: use regular fetch if SSE doesn't work
       try {
-        const resp = await fetch('/api/search?q=' + encodeURIComponent(q));
+        eventSource = new EventSource(url);
+
+        eventSource.addEventListener('progress', (event) => {
+          const data = JSON.parse(event.data);
+          totalSites = data.total || totalSites;
+          totalQueries = data.total_queries || totalQueries;
+          
+          if (!progressSection.classList.contains('shown')) {
+            progressSection.classList.remove('hidden');
+            progressSection.classList.add('shown');
+            resetProgress(totalSites * (totalQueries || 1));
+          }
+
+          if (data.status === 'fetching') {
+            addLog(data.site, 'fetching', '');
+            updateProgress(data.completed, data.total, '正在搜索 ' + data.site + '...');
+          } else if (data.status === 'ok') {
+            addLog(data.site, 'ok', data.results + ' 条结果');
+            updateProgress(data.completed, data.total, data.completed + ' / ' + data.total + ' 站完成');
+          } else if (data.status === 'fail') {
+            addLog(data.site, 'fail', data.error || '失败');
+            updateProgress(data.completed, data.total, data.completed + ' / ' + data.total + ' 站完成');
+          }
+        });
+
+        eventSource.addEventListener('result', (event) => {
+          eventSource.close();
+          progressSection.classList.add('hidden');
+          progressSection.classList.remove('shown');
+
+          const data = JSON.parse(event.data);
+          if (data.error) {
+            errorDiv.textContent = data.error;
+            errorDiv.classList.remove('hidden');
+            return;
+          }
+          if (data.total === 0) {
+            noResults.classList.remove('hidden');
+            return;
+          }
+          renderResults(data);
+        });
+
+        eventSource.addEventListener('error', () => {
+          if (eventSource) eventSource.close();
+          // Fallback to regular fetch
+          fallbackSearch(q, ai);
+        });
+
+      } catch (err) {
+        fallbackSearch(q, ai);
+      }
+    });
+
+    async function fallbackSearch(q, ai) {
+      loading.classList.remove('hidden');
+      try {
+        const resp = await fetch('/api/search?q=' + encodeURIComponent(q) + '&ai_enhanced=' + ai);
         const data = await resp.json();
         loading.classList.add('hidden');
-
-        if (data.error) {
-          errorDiv.textContent = data.error;
-          errorDiv.classList.remove('hidden');
-          return;
-        }
-
-        if (data.total === 0) {
-          noResults.classList.remove('hidden');
-          return;
-        }
-
+        if (data.error) { errorDiv.textContent = data.error; errorDiv.classList.remove('hidden'); return; }
+        if (data.total === 0) { noResults.classList.remove('hidden'); return; }
         renderResults(data);
       } catch (err) {
         loading.classList.add('hidden');
         errorDiv.textContent = '请求失败: ' + err.message;
         errorDiv.classList.remove('hidden');
       }
-    });
+    }
 
     function renderResults(data) {
       resultsDiv.classList.remove('hidden');
-
       resultsMeta.textContent = '找到 ' + data.total + ' 个结果';
       if (data.sites_success !== undefined) {
         resultsMeta.textContent += ' | ' + data.sites_success + '/' + (data.sites_success + data.sites_failed) + ' 站成功';
       }
-
-      const seasonKeys = Object.keys(data.seasons);
       tabs.innerHTML = '';
       tabContent.innerHTML = '';
-
-      if (seasonKeys.length === 0) {
-        tabContent.innerHTML = '<div class="empty">暂无分类数据</div>';
-        return;
-      }
+      const seasonKeys = Object.keys(data.seasons);
+      if (seasonKeys.length === 0) { tabContent.innerHTML = '<div class="empty">暂无分类数据</div>'; return; }
 
       const unclassKey = '_unclassified';
       const hasUnclass = seasonKeys.includes(unclassKey);
@@ -246,7 +335,6 @@
         btn.addEventListener('click', function() { switchTab(key, data); });
         tabs.appendChild(btn);
       });
-
       switchTab(allKeys[0], data);
     }
 
@@ -254,43 +342,32 @@
       document.querySelectorAll('.tab-btn').forEach(function(btn) {
         btn.classList.toggle('active', btn.dataset.season === activeKey);
       });
-
       var seasonData = data.seasons[activeKey] || {};
       var html = '';
       var qualityKeys = Object.keys(seasonData);
-
       if (qualityKeys.length === 0) {
         html = '<div class="empty">该分类无结果</div>';
       } else {
         qualityKeys.forEach(function(q) {
           html += '<h3 class="quality-header">' + escapeHtml(q) + '</h3>';
           html += '<div class="result-list">';
-          seasonData[q].forEach(function(item) {
-            html += renderCard(item);
-          });
+          seasonData[q].forEach(function(item) { html += renderCard(item); });
           html += '</div>';
         });
       }
-
       tabContent.innerHTML = html;
     }
 
     function renderCard(item) {
-      var season = item.season ? 'S' + String(item.season).padStart(2, '0') : '';
-      var episode = item.episode ? 'E' + String(item.episode).padStart(2, '0') : '';
-      var epLabel = (season || episode) ? '[' + season + (episode ? ' ' + episode : '') + ']' : '';
       var tags = [item.quality, item.source_type].filter(Boolean).join(' ');
       var tagHtml = tags ? '<span class="tags">' + escapeHtml(tags) + '</span>' : '';
-
       var magnet = item.magnet || '';
       var size = item.size || '';
       var seeders = item.seeders != null ? item.seeders + ' S' : '';
-
       return (
         '<div class="result-card">' +
           '<div class="card-header">' +
-            '<span class="card-title">' + escapeHtml(item.title) + '</span>' +
-            tagHtml +
+            '<span class="card-title">' + escapeHtml(item.title) + '</span>' + tagHtml +
           '</div>' +
           '<div class="card-meta">' +
             '<span class="source">' + escapeHtml(item.source) + '</span>' +
@@ -304,30 +381,16 @@
 
     function copyMagnet(magnet) {
       if (!magnet) return;
-      navigator.clipboard.writeText(magnet).then(function() {
-        alert('磁力链接已复制到剪贴板');
-      }).catch(function() {
-        window.prompt('手动复制:', magnet);
-      });
+      navigator.clipboard.writeText(magnet).then(function() { alert('磁力链接已复制到剪贴板'); })
+        .catch(function() { window.prompt('手动复制:', magnet); });
     }
 
-    function escapeHtml(text) {
-      var div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
+    function escapeHtml(text) { var d = document.createElement('div'); d.textContent = text; return d.innerHTML; }
+    function escapeAttr(text) { return text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 
-    function escapeAttr(text) {
-      return text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    }
-
-    // Trigger search from URL param
     var urlParams = new URLSearchParams(window.location.search);
     var q = urlParams.get('q');
-    if (q) {
-      input.value = q;
-      form.dispatchEvent(new Event('submit'));
-    }
+    if (q) { input.value = q; form.dispatchEvent(new Event('submit')); }
   </script>
 </body>
 </html>

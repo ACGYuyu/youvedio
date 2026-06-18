@@ -113,6 +113,138 @@ header {
   background: #0062c9;
 }
 
+.search-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+/* ---- AI Toggle ---- */
+.ai-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ai-toggle input {
+  display: none;
+}
+
+.toggle-slider {
+  width: 36px;
+  height: 20px;
+  background: #e8e8ed;
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.ai-toggle input:checked + .toggle-slider {
+  background: #34c759;
+}
+
+.ai-toggle input:checked + .toggle-slider::before {
+  transform: translateX(16px);
+}
+
+.toggle-label {
+  font-size: 13px;
+  color: #515154;
+  font-weight: 500;
+}
+
+/* ---- Progress Bar ---- */
+.progress-section {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #e8e8ed;
+  border-radius: 10px;
+}
+
+.progress-bar-track {
+  width: 100%;
+  height: 6px;
+  background: #e8e8ed;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #0071e3, #34c759);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #86868b;
+}
+
+.log-toggle {
+  padding: 2px 10px;
+  font-size: 12px;
+  background: #e8e8ed;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #515154;
+}
+
+.log-toggle:hover {
+  background: #d2d2d7;
+}
+
+.log-container {
+  margin-top: 10px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: #f5f5f7;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.log-list {
+  font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.log-item {
+  padding: 2px 4px;
+  border-bottom: 1px solid #e8e8ed;
+}
+
+.log-item:last-child {
+  border-bottom: none;
+}
+
+.log-ok { color: #28a745; }
+.log-fail { color: #dc3545; }
+.log-fetching { color: #0071e3; }
+
 .lang-tags {
   display: flex;
   justify-content: center;
