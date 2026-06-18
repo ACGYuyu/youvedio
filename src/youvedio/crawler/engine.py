@@ -1,8 +1,10 @@
-"""Crawler engine — unified scraping with retry, throttling, and progress."""
+"""Crawler engine — concurrent site fetching with retry and progress."""
 
 from __future__ import annotations
 
+import concurrent.futures
 import logging
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -28,14 +30,14 @@ class CrawlProgress:
 
 
 class CrawlerEngine:
-    """Central crawler with retry, throttling, and classification."""
+    """Central crawler with concurrent site fetching and retry."""
 
     def __init__(
         self,
         source_manager: SourceManager | None = None,
-        max_concurrent: int = 3,
-        retry_count: int = 2,
-        retry_delay: float = 1.0,
+        max_concurrent: int = 5,
+        retry_count: int = 1,
+        retry_delay: float = 0.5,
     ) -> None:
         self.source_manager = source_manager or SourceManager()
         self.max_concurrent = max_concurrent
@@ -48,46 +50,48 @@ class CrawlerEngine:
         site_names: list[str] | None = None,
         on_progress: Callable[[str, str, int, int], None] | None = None,
     ) -> CrawlProgress:
-        """Search all (or specified) sites for a keyword.
-
-        Args:
-            keyword: Search term.
-            site_names: Optional list of site names to restrict search.
-            on_progress: Optional callback(name, status, completed, total).
-                status is one of: 'fetching', 'ok', 'fail'.
-        """
+        """Search all sites concurrently."""
         parsers = self.source_manager.enabled_parsers
         if site_names:
             parsers = {n: p for n, p in parsers.items() if n in site_names}
 
         progress = CrawlProgress(total_sites=len(parsers))
         all_results: list[TorrentResult] = []
+        lock = threading.Lock()
 
-        for name, parser in parsers.items():
+        def _fetch_one(name: str, parser: object) -> tuple[str, list[TorrentResult]]:
             if on_progress:
-                on_progress(name, "fetching", progress.completed, progress.total_sites)
+                on_progress(name, "fetching", 0, 0)
             try:
                 results = self._fetch_with_retry(parser, keyword)
                 classified = [classify(r) for r in results]
-                all_results.extend(classified)
-                progress.success += 1
-                progress.results_found += len(results)
+                with lock:
+                    all_results.extend(classified)
                 if on_progress:
-                    on_progress(name, "ok", progress.completed + 1, progress.total_sites)
+                    on_progress(name, "ok", 0, 0)
+                return name, results
             except Exception as e:
-                progress.failed += 1
-                progress.errors.append(f"{name}: {e}")
+                with lock:
+                    progress.errors.append(f"{name}: {e}")
                 if on_progress:
-                    on_progress(name, "fail", progress.completed + 1, progress.total_sites)
-            finally:
-                progress.completed += 1
+                    on_progress(name, "fail", 0, 0)
+                return name, []
 
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_concurrent) as pool:
+            futs = {pool.submit(_fetch_one, name, parser) for name, parser in parsers.items()}
+            for fut in concurrent.futures.as_completed(futs):
+                name, results = fut.result()
+                with lock:
+                    progress.completed += 1
+                    if results:
+                        progress.success += 1
+                        progress.results_found += len(results)
+
+        progress.results = list(all_results)
         progress.results_found = len(all_results)
-        progress.results = all_results
         return progress
 
     def _fetch_with_retry(self, parser, keyword: str) -> list[TorrentResult]:
-        """Fetch with retry logic."""
         last_error: Exception | None = None
         for attempt in range(self.retry_count + 1):
             try:
