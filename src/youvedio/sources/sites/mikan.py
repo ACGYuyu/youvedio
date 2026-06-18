@@ -12,7 +12,7 @@ class MikanParser(SiteParser):
     lang = "zh"
 
     def search_url(self, keyword: str) -> str:
-        return f"{self.base_url}/Search/Results?searchStr={keyword}"
+        return f"{self.base_url}/Home/Search?searchStr={keyword}"
 
     def parse(self, html: str, source: str | None = None) -> list[TorrentResult]:
         from scrapling.parser import Selector
@@ -21,23 +21,20 @@ class MikanParser(SiteParser):
         results: list[TorrentResult] = []
         source = source or self.name
 
-        for row in doc.css("table > tbody > tr"):
+        for row in doc.css("tr.js-search-results-row"):
             try:
-                title = self.css_text(row, "td:nth-child(2) a::text")
+                magnet = row.css("input.js-episode-select::attr(data-magnet)").get() or ""
+                if not magnet:
+                    continue
+
+                title = self.css_text(row, "td:nth-child(2) a:first-child::text")
                 if not title:
                     continue
 
-                page_url = self.extract_page_url(self.css_attr(row, "td:nth-child(2) a", "href"))
-                magnet = self.css_attr(row, "a[href^='magnet:']", "href")
-                if not magnet:
-                    for a in row.css("a.ka[href]"):
-                        h = self.css_attr(a, "", "href")
-                        if h.startswith("magnet:"):
-                            magnet = h
-                            break
-
-                size = self.normalize_size(self.css_text(row, "td:nth-child(4)::text"))
+                size = self.normalize_size(self.css_text(row, "td:nth-child(3)::text"))
                 info_hash = self.extract_info_hash(magnet)
+                page_path = self.css_attr(row, "td:nth-child(2) a:first-child", "href")
+                page_url = self.extract_page_url(page_path) if page_path else ""
 
                 results.append(
                     TorrentResult.create(
