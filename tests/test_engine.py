@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from youvedio.crawler.engine import CrawlerEngine, CrawlProgress
 from youvedio.models import TorrentResult
 
@@ -27,12 +25,18 @@ class TestCrawlerEngine:
     def test_search_collects_results(self, mock_sm_cls):
         mock_sm = MagicMock()
         mock_parsers = {
-            "site_a": _make_mock_parser("site_a", [
-                TorrentResult.create(source="site_a", title="Result A", magnet="magnet:a"),
-            ]),
-            "site_b": _make_mock_parser("site_b", [
-                TorrentResult.create(source="site_b", title="Result B", magnet="magnet:b"),
-            ]),
+            "site_a": _make_mock_parser(
+                "site_a",
+                [
+                    TorrentResult.create(source="site_a", title="Result A", magnet="magnet:a"),
+                ],
+            ),
+            "site_b": _make_mock_parser(
+                "site_b",
+                [
+                    TorrentResult.create(source="site_b", title="Result B", magnet="magnet:b"),
+                ],
+            ),
         }
         mock_sm.enabled_parsers = mock_parsers
         mock_sm_cls.return_value = mock_sm
@@ -65,9 +69,14 @@ class TestCrawlerEngine:
     @patch("youvedio.crawler.engine.SourceManager")
     def test_search_classifies_results(self, mock_sm_cls):
         mock_sm = MagicMock()
-        parser = _make_mock_parser("site", [
-            TorrentResult.create(source="site", title="[FBI] Show S04E11 1080p", magnet="magnet:x"),
-        ])
+        parser = _make_mock_parser(
+            "site",
+            [
+                TorrentResult.create(
+                    source="site", title="[FBI] Show S04E11 1080p", magnet="magnet:x"
+                ),
+            ],
+        )
         mock_sm.enabled_parsers = {"site": parser}
         mock_sm_cls.return_value = mock_sm
 

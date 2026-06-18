@@ -3,7 +3,7 @@
 import json
 from unittest.mock import MagicMock, patch
 
-from youvedio.mcp_server import _to_dict, _seasons_to_json, _build_quality_summary
+from youvedio.mcp_server import _build_quality_summary, _seasons_to_json, _to_dict
 from youvedio.models import TorrentResult
 
 
@@ -45,8 +45,21 @@ class TestHelpers:
         assert len(result["S01"]["1080P"]) == 1
 
     def test_quality_summary(self):
-        r1 = TorrentResult.create(source="test", title="[A] Show S01 1080p", magnet="", season=1, subgroup="A")
-        r2 = TorrentResult.create(source="test", title="[B] Show S01 1080p", magnet="", season=1, subgroup="B", episode=1)
+        r1 = TorrentResult.create(
+            source="test",
+            title="[A] Show S01 1080p",
+            magnet="",
+            season=1,
+            subgroup="A",
+        )
+        r2 = TorrentResult.create(
+            source="test",
+            title="[B] Show S01 1080p",
+            magnet="",
+            season=1,
+            subgroup="B",
+            episode=1,
+        )
         seasons_dict = {"S01": {"1080P": [_to_dict(r1), _to_dict(r2)]}}
         summary = _build_quality_summary(seasons_dict)
         assert "S01" in summary
@@ -61,24 +74,27 @@ class TestHelpers:
         assert "_unclassified" not in summary
 
 
+def _mock_search(mock_get, mock_engine_cls, cache_value=None, results=None):
+    """Helper to set up mocks for search_torrents tests."""
+    mock_get.return_value = cache_value
+    if results is not None:
+        mock_progress = MagicMock()
+        mock_progress.results = results
+        mock_progress.success = len(results)
+        mock_progress.failed = 0
+        mock_engine = MagicMock()
+        mock_engine.search.return_value = mock_progress
+        mock_engine_cls.return_value = mock_engine
+
+
 @patch("youvedio.mcp_server.CrawlerEngine")
 @patch("youvedio.mcp_server.cache_get")
 @patch("youvedio.mcp_server.cache_set")
-def test_search_torrents_calls_engine(mock_set, mock_get, mock_engine_cls):
-    """Test that search_torrents invokes the crawler engine."""
-    mock_get.return_value = None
-
-    mock_progress = MagicMock()
-    mock_progress.results = []
-    mock_progress.success = 0
-    mock_progress.failed = 0
-    mock_engine = MagicMock()
-    mock_engine.search.return_value = mock_progress
-    mock_engine_cls.return_value = mock_engine
-
+def test_search_torrents_calls_engine(_mock_set, mock_get, mock_engine_cls):
+    _mock_search(mock_get, mock_engine_cls)
     from youvedio.mcp_server import search_torrents
-    result = json.loads(search_torrents("test"))
 
+    result = json.loads(search_torrents("test"))
     assert result["keyword"] == "test"
     assert "seasons" in result
     assert "quality_summary" in result
@@ -87,12 +103,12 @@ def test_search_torrents_calls_engine(mock_set, mock_get, mock_engine_cls):
 @patch("youvedio.mcp_server.CrawlerEngine")
 @patch("youvedio.mcp_server.cache_get")
 @patch("youvedio.mcp_server.cache_set")
-def test_search_torrents_uses_cache(mock_set, mock_get, mock_engine_cls):
-    mock_get.return_value = {"keyword": "cached", "total": 0, "seasons": {}, "quality_summary": {}}
-
+def test_search_torrents_uses_cache(_mock_set, mock_get, mock_engine_cls):
+    cached = {"keyword": "cached", "total": 0, "seasons": {}, "quality_summary": {}}
+    _mock_search(mock_get, mock_engine_cls, cache_value=cached)
     from youvedio.mcp_server import search_torrents
-    result = json.loads(search_torrents("test"))
 
+    result = json.loads(search_torrents("test"))
     assert result["keyword"] == "cached"
     mock_engine_cls.assert_not_called()
 
@@ -100,25 +116,21 @@ def test_search_torrents_uses_cache(mock_set, mock_get, mock_engine_cls):
 @patch("youvedio.mcp_server.CrawlerEngine")
 @patch("youvedio.mcp_server.cache_get")
 @patch("youvedio.mcp_server.cache_set")
-def test_search_torrents_includes_quality_summary(mock_set, mock_get, mock_engine_cls):
-    mock_get.return_value = None
-
+def test_search_torrents_includes_quality_summary(_mock_set, mock_get, mock_engine_cls):
     r = TorrentResult.create(
-        source="nyaa", title="[FBI] Show S04E11 1080p", magnet="m:",
-        seeders=50, season=4, episode=11, quality="1080P", subgroup="FBI",
+        source="nyaa",
+        title="[FBI] Show S04E11 1080p",
+        magnet="m:",
+        seeders=50,
+        season=4,
+        episode=11,
+        quality="1080P",
+        subgroup="FBI",
     )
-
-    mock_progress = MagicMock()
-    mock_progress.results = [r]
-    mock_progress.success = 1
-    mock_progress.failed = 0
-    mock_engine = MagicMock()
-    mock_engine.search.return_value = mock_progress
-    mock_engine_cls.return_value = mock_engine
-
+    _mock_search(mock_get, mock_engine_cls, results=[r])
     from youvedio.mcp_server import search_torrents
-    result = json.loads(search_torrents("Show"))
 
+    result = json.loads(search_torrents("Show"))
     assert result["total"] == 1
     assert "S04" in result["quality_summary"]
     assert result["quality_summary"]["S04"]["1080P"]["total"] == 1

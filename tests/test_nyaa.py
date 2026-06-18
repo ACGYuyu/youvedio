@@ -2,7 +2,6 @@
 
 from youvedio.sources.sites.nyaa import NyaaParser
 
-
 _NYAA_HTML = """<table class="table table-bordered table-hover table-striped torrent-list">
 <thead><tr><th>Category</th><th>Name</th><th>Size</th><th>Date</th><th>Seeders</th><th>Leechers</th></tr></thead>
 <tbody>

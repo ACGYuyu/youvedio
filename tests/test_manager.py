@@ -26,11 +26,14 @@ def test_enabled_parsers_respects_config(mock_load, mock_cfg):
     b.name, b.enabled = "site_b", True
     mock_load.return_value = {"site_a": a, "site_b": b}
     import json
+
     mock_cfg.exists.return_value = True
-    mock_cfg.read_text.return_value = json.dumps([
-        {"name": "site_a", "enabled": True},
-        {"name": "site_b", "enabled": False},
-    ])
+    mock_cfg.read_text.return_value = json.dumps(
+        [
+            {"name": "site_a", "enabled": True},
+            {"name": "site_b", "enabled": False},
+        ]
+    )
     mgr = SourceManager()
     assert "site_a" in mgr.enabled_parsers
     assert "site_b" not in mgr.enabled_parsers
@@ -52,6 +55,7 @@ def test_search_site_disabled(mock_load, mock_cfg):
     p.name, p.enabled = "s", True
     mock_load.return_value = {"s": p}
     import json
+
     mock_cfg.exists.return_value = True
     mock_cfg.read_text.return_value = json.dumps([{"name": "s", "enabled": False}])
     mgr = SourceManager()
@@ -89,8 +93,7 @@ def test_search_all_limits_results(mock_load, mock_cfg):
     a = MagicMock()
     a.name, a.enabled = "a", True
     a.fetch.return_value = [
-        TorrentResult.create(source="a", title=f"R{i}", magnet="", seeders=i)
-        for i in range(10)
+        TorrentResult.create(source="a", title=f"R{i}", magnet="", seeders=i) for i in range(10)
     ]
     mock_load.return_value = {"a": a}
     mock_cfg.exists.return_value = False
@@ -104,8 +107,9 @@ def test_search_all_limits_results(mock_load, mock_cfg):
 def test_singleton(mock_load, mock_cfg):
     mock_load.return_value = {}
     mock_cfg.exists.return_value = False
-    from youvedio.sources.manager import get_source_manager
     import youvedio.sources.manager as mod
+    from youvedio.sources.manager import get_source_manager
+
     mod._instance = None
     m1 = get_source_manager()
     m2 = get_source_manager()

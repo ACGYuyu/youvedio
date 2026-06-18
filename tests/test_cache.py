@@ -2,9 +2,7 @@
 
 import time
 
-import pytest
-
-from youvedio.storage.cache import get, set, clear
+from youvedio.storage.cache import clear, get, set
 
 
 class TestCache:
