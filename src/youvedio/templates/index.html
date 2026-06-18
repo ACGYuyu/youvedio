@@ -75,8 +75,11 @@
     const tabContent = document.getElementById('tabContent');
     const resultsMeta = document.getElementById('resultsMeta');
     const aiEnhanced = document.getElementById('aiEnhanced');
+    const searchBtn = form.querySelector('button[type="submit"]');
     let currentGroupBy = 'season';
     let lastSearchData = null;
+    let activeEventSource = null;
+    let isSearching = false;
 
     // ---- Progress & Log ----
     const progressSection = document.getElementById('progressSection');
@@ -143,33 +146,46 @@
       if (currentGroupBy !== 'subgroup') reSearch('subgroup');
     });
 
-    // ---- Search (SSE) ----
+    // ---- Search with SSE, crash-safe ----
+    function abortSearch() {
+      if (activeEventSource) {
+        activeEventSource.close();
+        activeEventSource = null;
+      }
+      isSearching = false;
+      searchBtn.disabled = false;
+    }
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (isSearching) return;
+      abortSearch();
+
       const q = input.value.trim();
       if (!q) return;
+      isSearching = true;
+      searchBtn.disabled = true;
 
       resultsDiv.classList.add('hidden');
       noResults.classList.add('hidden');
       errorDiv.classList.add('hidden');
       progressSection.classList.add('hidden');
+      lastSearchData = null;
 
       const ai = aiEnhanced.checked;
       const gb = currentGroupBy;
       const url = '/api/search/stream?q=' + encodeURIComponent(q) + '&ai_enhanced=' + ai + '&group_by=' + gb;
 
-      // Fallback: use regular fetch if SSE doesn't work
       try {
-        const eventSource = new EventSource(url);
+        activeEventSource = new EventSource(url);
         let sseFailed = false;
 
-        eventSource.addEventListener('progress', (event) => {
+        activeEventSource.addEventListener('progress', (event) => {
           const data = JSON.parse(event.data);
           if (!progressSection.classList.contains('shown')) {
             progressSection.classList.remove('hidden');
             progressSection.classList.add('shown');
-            const total = (data.total || 1) * (data.total_queries || 1);
-            resetProgress(total);
+            resetProgress((data.total || 1) * (data.total_queries || 1));
           }
           if (data.status === 'fetching') {
             addLog(data.site, 'fetching', '');
@@ -183,10 +199,9 @@
           }
         });
 
-        eventSource.addEventListener('result', (event) => {
-          eventSource.close();
-      progressSection.classList.add('hidden');
-      lastSearchData = null;
+        activeEventSource.addEventListener('result', (event) => {
+          abortSearch();
+          progressSection.classList.add('hidden');
           progressSection.classList.remove('shown');
           lastSearchData = JSON.parse(event.data);
           if (lastSearchData.error) {
@@ -201,27 +216,29 @@
           renderResults(lastSearchData);
         });
 
-        eventSource.addEventListener('error', () => {
-          if (eventSource) eventSource.close();
+        activeEventSource.addEventListener('error', () => {
           if (!sseFailed) {
             sseFailed = true;
+            abortSearch();
             fallbackSearch(q, ai, gb);
           }
         });
 
         setTimeout(() => {
-          if (progressSection.classList.contains('hidden')) {
+          if (progressSection.classList.contains('hidden') && isSearching) {
+            abortSearch();
             fallbackSearch(q, ai, gb);
           }
-        }, 3000);
+        }, 4000);
 
       } catch (err) {
+        abortSearch();
         fallbackSearch(q, ai, gb);
       }
     });
 
     async function fallbackSearch(q, ai, gb) {
-      // Show progress bar instead of spinner for fallback too
+      if (!isSearching) return;
       if (!progressSection.classList.contains('shown')) {
         progressSection.classList.remove('hidden');
         progressSection.classList.add('shown');
@@ -232,6 +249,7 @@
       try {
         const resp = await fetch('/api/search?q=' + encodeURIComponent(q) + '&ai_enhanced=' + ai + '&group_by=' + gb);
         lastSearchData = await resp.json();
+        abortSearch();
         progressSection.classList.add('hidden');
         progressSection.classList.remove('shown');
         addLog('request', 'ok', lastSearchData.total + ' 条结果');
@@ -239,6 +257,7 @@
         if (lastSearchData.total === 0) { noResults.classList.remove('hidden'); return; }
         renderResults(lastSearchData);
       } catch (err) {
+        abortSearch();
         progressSection.classList.add('hidden');
         progressSection.classList.remove('shown');
         errorDiv.textContent = '请求失败: ' + err.message;
