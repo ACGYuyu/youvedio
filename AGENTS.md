@@ -68,7 +68,6 @@ src/youvedio/
 │   ├── dmhy.py         # 动漫花园
 │   ├── mikan.py        # 蜜柑计划
 │   └── ...
-├── sources/discoverer.py  # 搜索引擎发现新站点
 ├── crawler/
 │   ├── engine.py       # Scrapling 爬虫引擎 (并发)
 │   └── classifier.py   # 季/画质/字幕组归类
