@@ -54,6 +54,14 @@ src/youvedio/
 - **提交**: Conventional Commits: `feat(scope): msg`, `fix(scope): msg`, `refactor(scope): msg`
 - **范围** (scope): `nyaa`, `dmhy`, `engine`, `classifier`, `translation`, `web`, `cli`, `scaffold`
 
+## Web 服务器
+
+```bash
+py -3.12 -m youvedio serve          # 启动 http://localhost:8000
+```
+
+支持 `?q=` URL 参数自动搜索。代理环境需先设置 `HTTP_PROXY` 环境变量。
+
 ## 代码风格
 
 - Ruff lint + format (line-length=100)
