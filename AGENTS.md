@@ -38,6 +38,7 @@ src/youvedio/
 │   ├── dmhy.py       # 动漫花园
 │   ├── mikan.py      # 蜜柑计划
 │   └── ...
+├── sources/discoverer.py  # 搜索引擎发现新站点
 ├── crawler/
 │   ├── engine.py     # Scrapling 爬虫封装
 │   └── classifier.py # 季/画质归类
@@ -52,7 +53,7 @@ src/youvedio/
 
 - **分支**: `main` → `dev` → `feat/xxx` → PR → `dev` → (发布) → `main`
 - **提交**: Conventional Commits: `feat(scope): msg`, `fix(scope): msg`, `refactor(scope): msg`
-- **范围** (scope): `nyaa`, `dmhy`, `engine`, `classifier`, `translation`, `web`, `cli`, `scaffold`
+- **范围** (scope): `nyaa`, `dmhy`, `engine`, `classifier`, `translation`, `web`, `cli`, `scaffold`, `sources`, `analyzer`
 
 ## Web 服务器
 

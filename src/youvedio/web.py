@@ -1,4 +1,4 @@
-"""FastAPI web application — search page and API."""
+"""FastAPI web application — search page, API, and settings."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 from youvedio.config import settings
 from youvedio.crawler.classifier import classify, group_by_season
@@ -29,6 +30,15 @@ if _STATIC.exists():
     app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
 
 templates = Jinja2Templates(directory=str(_TEMPLATES)) if _TEMPLATES.exists() else None
+
+
+class SettingsPayload(BaseModel):
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com/v1"
+    deepseek_model: str = "deepseek-chat"
+    proxy_enabled: bool = False
+    http_proxy: str = ""
+    https_proxy: str = ""
 
 
 def _torrent_to_dict(r: TorrentResult) -> dict:
@@ -60,32 +70,29 @@ async def api_search(q: str = Query("")):
     if not q.strip():
         return JSONResponse({"keyword": q, "total": 0, "seasons": {}})
 
-    # Translate query for multi-language search
+    settings.apply_proxy()
     translations = translate_query(q)
     unique_queries: list[str] = []
     for val in [q] + [translations.get(k, "") for k in ("zh", "en", "ja")]:
         if val and val not in unique_queries:
             unique_queries.append(val)
 
-    # Crawl with each language query
     engine = CrawlerEngine(max_concurrent=settings.crawler_max_concurrent)
     all_results: list[TorrentResult] = []
     total_success = 0
     total_failed = 0
     all_errors: list[str] = []
 
-    for query in unique_queries[:3]:  # max 3 languages
+    for query in unique_queries[:3]:
         progress = engine.search(query)
         all_results.extend(progress.results)
         total_success += progress.success
         total_failed += progress.failed
         all_errors.extend(progress.errors)
 
-    # Classify and group
     classified = [classify(r) for r in all_results]
     seasons = group_by_season(classified)
 
-    # Serialize to dict for JSON response
     seasons_dict: dict[str, dict[str, list[dict]]] = {}
     for season_key, quality_map in seasons.items():
         seasons_dict[season_key] = {}
@@ -102,6 +109,20 @@ async def api_search(q: str = Query("")):
             "seasons": seasons_dict,
         }
     )
+
+
+@app.get("/api/settings")
+async def get_settings():
+    """Return current settings (with API key masked)."""
+    return JSONResponse(settings.to_dict())
+
+
+@app.post("/api/settings")
+async def update_settings(payload: SettingsPayload):
+    """Update settings at runtime."""
+    settings.update(**payload.model_dump())
+    settings.apply_proxy()
+    return JSONResponse({"ok": True, **settings.to_dict()})
 
 
 @app.get("/search", response_class=HTMLResponse)
