@@ -32,7 +32,11 @@
 
 ## v0.2.0 — 待规划
 
-- 搜索结果缓存优化
+- 通用站点解析器（JSON 配置驱动，减少 80% 的新站适配工作量）
+  - `sources/sites/generic.py` — 通用解析器类
+  - `sources.json` 支持 `type: "generic"` 和 `selectors` 配置
+  - 支持磁力在属性、需要 Playwright、非 UTF-8 编码等特例
+  - 逐步迁移现有独立解析器到通用模式
 - 批量关键词搜索
 - Docker 部署
 
