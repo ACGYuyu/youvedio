@@ -46,11 +46,6 @@
       </div>
     </div>
 
-    <div id="loading" class="loading hidden">
-      <div class="spinner"></div>
-      <p>正在搜索中，请稍候...</p>
-    </div>
-
     <div id="results" class="hidden">
       <div class="results-meta">
         <span id="resultsMeta"></span>
@@ -73,7 +68,6 @@
   <script>
     const form = document.getElementById('searchForm');
     const input = document.getElementById('q');
-    const loading = document.getElementById('loading');
     const resultsDiv = document.getElementById('results');
     const noResults = document.getElementById('noResults');
     const errorDiv = document.getElementById('error');
@@ -143,7 +137,6 @@
       noResults.classList.add('hidden');
       errorDiv.classList.add('hidden');
       progressSection.classList.add('hidden');
-      lastSearchData = null;
 
       const ai = aiEnhanced.checked;
       const gb = currentGroupBy;
@@ -152,12 +145,14 @@
       // Fallback: use regular fetch if SSE doesn't work
       try {
         const eventSource = new EventSource(url);
+        let sseFailed = false;
 
         eventSource.addEventListener('progress', (event) => {
           const data = JSON.parse(event.data);
           if (!progressSection.classList.contains('shown')) {
             progressSection.classList.remove('hidden');
             progressSection.classList.add('shown');
+            loading.classList.add('hidden');
             const total = (data.total || 1) * (data.total_queries || 1);
             resetProgress(total);
           }
@@ -175,7 +170,8 @@
 
         eventSource.addEventListener('result', (event) => {
           eventSource.close();
-          progressSection.classList.add('hidden');
+      progressSection.classList.add('hidden');
+      lastSearchData = null;
           progressSection.classList.remove('shown');
           lastSearchData = JSON.parse(event.data);
           if (lastSearchData.error) {
@@ -192,8 +188,17 @@
 
         eventSource.addEventListener('error', () => {
           if (eventSource) eventSource.close();
-          fallbackSearch(q, ai, gb);
+          if (!sseFailed) {
+            sseFailed = true;
+            fallbackSearch(q, ai, gb);
+          }
         });
+
+        setTimeout(() => {
+          if (progressSection.classList.contains('hidden') && loading.classList.contains('hidden')) {
+            fallbackSearch(q, ai, gb);
+          }
+        }, 3000);
 
       } catch (err) {
         fallbackSearch(q, ai, gb);
@@ -201,16 +206,27 @@
     });
 
     async function fallbackSearch(q, ai, gb) {
-      loading.classList.remove('hidden');
+      // Show progress bar instead of spinner for fallback too
+      if (!progressSection.classList.contains('shown')) {
+        progressSection.classList.remove('hidden');
+        progressSection.classList.add('shown');
+        resetProgress(1);
+      }
+      loading.classList.add('hidden');
+      updateProgress(0, 1, '正在搜索...');
+      addLog('request', 'fetching', '');
       try {
         const resp = await fetch('/api/search?q=' + encodeURIComponent(q) + '&ai_enhanced=' + ai + '&group_by=' + gb);
         lastSearchData = await resp.json();
-        loading.classList.add('hidden');
+        progressSection.classList.add('hidden');
+        progressSection.classList.remove('shown');
+        addLog('request', 'ok', lastSearchData.total + ' 条结果');
         if (lastSearchData.error) { errorDiv.textContent = lastSearchData.error; errorDiv.classList.remove('hidden'); return; }
         if (lastSearchData.total === 0) { noResults.classList.remove('hidden'); return; }
         renderResults(lastSearchData);
       } catch (err) {
-        loading.classList.add('hidden');
+        progressSection.classList.add('hidden');
+        progressSection.classList.remove('shown');
         errorDiv.textContent = '请求失败: ' + err.message;
         errorDiv.classList.remove('hidden');
       }
