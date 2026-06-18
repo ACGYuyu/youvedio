@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
+
+from pydantic import BaseModel, Field
 
 
-@dataclass
-class TorrentResult:
+class TorrentResult(BaseModel):
     """Single torrent/magnet result."""
 
     source: str
@@ -22,31 +22,53 @@ class TorrentResult:
     quality: str | None = None
     source_type: str | None = None
     page_url: str | None = None
-    crawled_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    crawled_at: datetime | None = None
+
+    @staticmethod
+    def create(
+        source: str,
+        title: str,
+        magnet: str = "",
+        info_hash: str | None = None,
+        size: str | None = None,
+        seeders: int | None = None,
+        leechers: int | None = None,
+        season: int | None = None,
+        episode: int | None = None,
+        quality: str | None = None,
+        source_type: str | None = None,
+        page_url: str | None = None,
+    ) -> TorrentResult:
+        return TorrentResult(
+            source=source,
+            title=title,
+            magnet=magnet,
+            info_hash=info_hash,
+            size=size,
+            seeders=seeders,
+            leechers=leechers,
+            season=season,
+            episode=episode,
+            quality=quality,
+            source_type=source_type,
+            page_url=page_url,
+        )
 
 
-@dataclass
-class SearchResult:
+class SearchResult(BaseModel):
     """Grouped search results for a query."""
 
     keyword: str
-    searched_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    seasons: dict[str, dict[str, list[TorrentResult]]] = field(default_factory=dict)
-    unclassified: list[TorrentResult] = field(default_factory=list)
+    searched_at: datetime = Field(default_factory=datetime.utcnow)
+    seasons: dict[str, dict[str, list[TorrentResult]]] = Field(default_factory=dict)
+    unclassified: list[TorrentResult] = Field(default_factory=list)
 
-    @property
-    def total(self) -> int:
-        count = len(self.unclassified)
-        for season_group in self.seasons.values():
-            for results in season_group.values():
-                count += len(results)
-        return count
 
-    def to_dict(self) -> dict:
-        return {
-            "keyword": self.keyword,
-            "searched_at": self.searched_at.isoformat(),
-            "total": self.total,
-            "seasons": self.seasons,
-            "unclassified": self.unclassified,
-        }
+class ClassifiedResult(BaseModel):
+    """Output schema for JSON export."""
+
+    keyword: str
+    searched_at: str
+    total: int
+    seasons: dict[str, dict[str, list[TorrentResult]]]
+    unclassified: list[TorrentResult]
