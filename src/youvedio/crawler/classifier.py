@@ -49,6 +49,15 @@ _SOURCE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 
 _SUBGROUP_PATTERN = re.compile(r"^\[([^\]]+)\]")
 
+_QUALITY_RANK: dict[str, int] = {
+    "4K": 0,
+    "2160P": 1,
+    "1080P": 2,
+    "720P": 3,
+    "480P": 4,
+    "360P": 5,
+}
+
 
 def _first_match(patterns: list, text: str) -> str | None:
     for p in patterns:
@@ -93,56 +102,74 @@ def classify(result: TorrentResult) -> TorrentResult:
     return result
 
 
+def _season_sort_key(k: str) -> int:
+    """Sort key: newest season first (_unclassified always last)."""
+    if k == "_unclassified":
+        return 999
+    try:
+        return -int(k[1:])  # S04 → -4 (before S01 → -1)
+    except (ValueError, IndexError):
+        return 0
+
+
+def _quality_sort_key(q: str) -> int:
+    """Sort key: best quality first (4K → 0, Unknown → 99)."""
+    return _QUALITY_RANK.get(q, 99)
+
+
 def group_by_season(
     results: list[TorrentResult],
 ) -> dict[str, dict[str, list[TorrentResult]]]:
-    """Group results by season label, then by quality."""
+    """Group by season (newest first) → quality (best first)."""
     groups: dict[str, dict[str, list[TorrentResult]]] = {}
 
     for r in results:
-        season_key = f"S{r.season:02d}" if r.season is not None else None
-        quality_key = r.quality or "Unknown"
-
-        if season_key is None:
+        sk = f"S{r.season:02d}" if r.season is not None else None
+        qk = r.quality or "Unknown"
+        if sk is None:
             groups.setdefault("_unclassified", {}).setdefault("All", []).append(r)
-            continue
+        else:
+            groups.setdefault(sk, {}).setdefault(qk, []).append(r)
 
-        groups.setdefault(season_key, {}).setdefault(quality_key, []).append(r)
+    for s in groups:
+        for q in groups[s]:
+            groups[s][q].sort(key=lambda x: x.seeders or 0, reverse=True)
 
-    for season in groups:
-        for quality in groups[season]:
-            groups[season][quality].sort(key=lambda x: x.seeders or 0, reverse=True)
-
-    return groups
+    ordered: dict[str, dict[str, list[TorrentResult]]] = {}
+    for sk in sorted(groups, key=_season_sort_key):
+        ordered[sk] = dict(sorted(groups[sk].items(), key=lambda x: _quality_sort_key(x[0])))
+    return ordered
 
 
 def group_by_subgroup(
     results: list[TorrentResult],
 ) -> dict[str, dict[str, dict[str, list[TorrentResult]]]]:
-    """Group results by subgroup → season → quality.
-
-    Returns: {subgroup_name: {season_label: {quality: [results]}}}
-    """
+    """Group by subgroup → season (newest) → quality (best)."""
     groups: dict[str, dict[str, dict[str, list[TorrentResult]]]] = {}
 
     for r in results:
         sg = r.subgroup or "_unknown"
-        season_key = f"S{r.season:02d}" if r.season is not None else None
-        quality_key = r.quality or "Unknown"
-
+        sk = f"S{r.season:02d}" if r.season is not None else None
+        qk = r.quality or "Unknown"
         groups.setdefault(sg, {})
-
-        if season_key is None:
+        if sk is None:
             groups[sg].setdefault("_unclassified", {}).setdefault("All", []).append(r)
         else:
-            groups[sg].setdefault(season_key, {}).setdefault(quality_key, []).append(r)
+            groups[sg].setdefault(sk, {}).setdefault(qk, []).append(r)
 
     for sg in groups:
-        for season in groups[sg]:
-            for quality in groups[sg][season]:
-                groups[sg][season][quality].sort(key=lambda x: x.seeders or 0, reverse=True)
+        for s in groups[sg]:
+            for q in groups[sg][s]:
+                groups[sg][s][q].sort(key=lambda x: x.seeders or 0, reverse=True)
 
-    return groups
+    ordered: dict[str, dict[str, dict[str, list[TorrentResult]]]] = {}
+    for sg in sorted(groups):
+        ordered[sg] = {}
+        for sk in sorted(groups[sg], key=_season_sort_key):
+            ordered[sg][sk] = dict(
+                sorted(groups[sg][sk].items(), key=lambda x: _quality_sort_key(x[0]))
+            )
+    return ordered
 
 
 def relevance_sort(query: str, results: list[TorrentResult]) -> list[TorrentResult]:
