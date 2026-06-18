@@ -13,7 +13,9 @@ from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
+from youvedio.analyzer.classify_ai import ai_classify_results, apply_ai_classification
 from youvedio.config import settings
 from youvedio.crawler.classifier import classify, group_by_season, group_by_subgroup, relevance_sort
 from youvedio.crawler.engine import CrawlerEngine
@@ -247,6 +249,37 @@ async def api_search_stream(
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
+    )
+
+
+class ClassifyPayload(BaseModel):
+    results: list[dict] = []
+    keyword: str = ""
+
+
+@app.post("/api/classify-ai")
+async def api_classify_ai(payload: ClassifyPayload):
+    """Re-classify search results using AI (subgroup → season → quality)."""
+    from youvedio.models import TorrentResult
+
+    results = [TorrentResult(**r) for r in payload.results]
+    ai_data = ai_classify_results(results, payload.keyword)
+    if not ai_data:
+        return JSONResponse({"error": "AI classification failed"}, status_code=400)
+
+    seasons_dict = apply_ai_classification(results, ai_data)
+    total = 0
+    for sg in seasons_dict.values() or ():
+        for sk in sg.values() or ():
+            if isinstance(sk, dict):
+                for items in sk.values():
+                    total += len(items) if isinstance(items, list) else 0
+    return JSONResponse(
+        {
+            "keyword": payload.keyword,
+            "total": total,
+            "seasons": seasons_dict,
+        }
     )
 
 
