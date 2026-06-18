@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "youvedio"
 version = "0.1.0"
-description = "多语言种子/磁力搜索引擎"
+description = "种子/磁力搜索引擎 MCP Server"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
@@ -28,9 +28,6 @@ dev = [
     "pytest-asyncio>=0.25.0",
     "pytest-cov>=6.0.0",
     "pre-commit>=4.0.0",
-]
-ai = [
-    "openai>=1.0.0",
 ]
 
 [project.urls]

@@ -7,7 +7,6 @@ import re
 from urllib.parse import urlparse
 
 from youvedio.config import settings
-from youvedio.translation import translate_query
 
 logger = logging.getLogger(__name__)
 
@@ -126,12 +125,7 @@ def discover(
     if not engines:
         engines = ["google"]
 
-    # Translate keyword for multi-language search
-    translations = translate_query(keyword)
-    search_terms: list[str] = []
-    for val in [keyword, translations.get("en", ""), translations.get("ja", "")]:
-        if val and val not in search_terms:
-            search_terms.append(val)
+    search_terms: list[str] = [keyword]
 
     candidates: list[dict[str, str]] = []
     seen_domains: set[str] = set()
