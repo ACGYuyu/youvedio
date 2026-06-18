@@ -44,12 +44,33 @@ def _seasons_to_json(seasons):
     return result
 
 
+def _build_quality_summary(seasons) -> dict:
+    """Build a compact summary of available qualities per season."""
+    summary: dict = {}
+    for sk, qm in seasons.items():
+        if sk == "_unclassified":
+            continue
+        summary[sk] = {}
+        for q, items in qm.items():
+            subgroups = [i.get("subgroup", "") for i in items if i.get("subgroup")]
+            subgroups = list(dict.fromkeys(subgroups))
+            episode_count = sum(1 for i in items if i.get("episode"))
+            batch_count = sum(1 for i in items if not i.get("episode"))
+            summary[sk][q] = {
+                "total": len(items),
+                "subgroups": subgroups,
+                "has_single_episodes": episode_count > 0,
+                "has_batch": batch_count > 0,
+            }
+    return summary
+
+
 @server.tool(
     name="search_torrents",
     description=(
         "Search all known torrent/magnet sites for anime or video content. "
-        "Returns results grouped by season and quality. "
-        "Results are cached for 10 minutes."
+        "Returns results grouped by season and quality, plus a quality_summary "
+        "for quick overview. Results cached for 10 minutes."
     ),
 )
 def search_torrents(keyword: str) -> str:
@@ -59,7 +80,8 @@ def search_torrents(keyword: str) -> str:
         keyword: Search term (anime/video title in any language).
 
     Returns:
-        JSON string with results grouped by season and quality.
+        JSON with 'seasons' (grouped results) and 'quality_summary' (compact overview).
+        quality_summary helps the agent find what's available without re-searching.
     """
     cache_key = f"search:{keyword.strip().lower()}"
     cached = cache_get(cache_key)
@@ -75,12 +97,14 @@ def search_torrents(keyword: str) -> str:
     classified = [classify(r) for r in all_results]
     seasons = group_by_season(classified)
 
+    seasons_dict = _seasons_to_json(seasons)
     payload = {
         "keyword": keyword,
         "total": len(all_results),
         "sites_success": progress.success,
         "sites_failed": progress.failed,
-        "seasons": _seasons_to_json(seasons),
+        "seasons": seasons_dict,
+        "quality_summary": _build_quality_summary(seasons_dict),
     }
 
     cache_set(cache_key, payload)
