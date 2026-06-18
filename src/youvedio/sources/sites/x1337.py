@@ -59,11 +59,14 @@ class X1337Parser(SiteParser):
         try:
             from scrapling.fetchers import StealthyFetcher
 
-            page = StealthyFetcher.fetch(
-                url,
-                headless=True,
-                timeout=settings.crawler_timeout,
-            )
+            kwargs: dict = {
+                "headless": True,
+                "timeout": settings.crawler_timeout,
+            }
+            proxy = self._proxies()
+            if proxy:
+                kwargs["proxies"] = proxy
+            page = StealthyFetcher.fetch(url, **kwargs)
             return self.parse(page.text, source=self.name)
         except Exception:
             return super().fetch(keyword)

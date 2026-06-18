@@ -28,18 +28,30 @@ class SiteParser(ABC):
     def parse(self, html: str, source: str | None = None) -> list[TorrentResult]:
         """Parse search results page HTML into TorrentResult list."""
 
+    def _proxies(self) -> dict | None:
+        """Return proxy dict if proxy is enabled and configured."""
+        if settings.proxy_enabled and settings.http_proxy:
+            return {
+                "http": settings.http_proxy,
+                "https": settings.https_proxy or settings.http_proxy,
+            }
+        return None
+
     def fetch(self, keyword: str) -> list[TorrentResult]:
         """Fetch and parse search results from the site."""
         from scrapling.fetchers import Fetcher
 
         url = self.search_url(keyword)
         try:
-            resp = Fetcher.get(
-                url,
-                stealthy_headers=True,
-                timeout=settings.crawler_timeout,
-                impersonate="chrome",
-            )
+            kwargs: dict = {
+                "stealthy_headers": True,
+                "timeout": settings.crawler_timeout,
+                "impersonate": "chrome",
+            }
+            proxy = self._proxies()
+            if proxy:
+                kwargs["proxies"] = proxy
+            resp = Fetcher.get(url, **kwargs)
             return self.parse(resp.text, source=self.name)
         except Exception:
             return []
