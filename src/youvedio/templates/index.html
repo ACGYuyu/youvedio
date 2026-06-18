@@ -7,11 +7,6 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <nav class="navbar">
-    <a href="/" class="nav-logo">YouVedio</a>
-    <button class="settings-btn" id="settingsBtn">设置</button>
-  </nav>
-
   <div class="container">
     <header>
       <h1 class="logo">YouVedio</h1>
@@ -75,50 +70,6 @@
     <div id="error" class="error hidden"></div>
   </div>
 
-  <!-- Settings Dialog -->
-  <dialog id="settingsDialog">
-    <div class="dialog-content">
-      <div class="dialog-header"><h2>设置</h2></div>
-      <div class="dialog-body">
-        <div class="settings-section">
-          <h3>🔌 代理配置</h3>
-          <label class="toggle-row">
-            <span>启用代理</span>
-            <input type="checkbox" id="proxyEnabled">
-          </label>
-          <div class="input-row">
-            <label>HTTP 代理</label>
-            <input type="text" id="httpProxy" placeholder="http://127.0.0.1:10808">
-          </div>
-          <div class="input-row">
-            <label>HTTPS 代理</label>
-            <input type="text" id="httpsProxy" placeholder="http://127.0.0.1:10808">
-          </div>
-        </div>
-        <div class="settings-section">
-          <h3>🤖 AI 模型配置</h3>
-          <div class="input-row">
-            <label>API Key</label>
-            <input type="password" id="apiKey" placeholder="sk-xxxxxxxxxxxxxx">
-          </div>
-          <div class="input-row">
-            <label>Base URL</label>
-            <input type="text" id="baseUrl" placeholder="https://api.deepseek.com/v1">
-          </div>
-          <div class="input-row">
-            <label>模型名称</label>
-            <input type="text" id="modelName" placeholder="deepseek-chat">
-          </div>
-        </div>
-      </div>
-      <div class="dialog-footer">
-        <span class="save-status" id="saveStatus"></span>
-        <button class="btn-cancel" id="cancelSettings">取消</button>
-        <button class="btn-primary" id="saveSettings">保存</button>
-      </div>
-    </div>
-  </dialog>
-
   <script>
     const form = document.getElementById('searchForm');
     const input = document.getElementById('q');
@@ -166,84 +117,6 @@
       progressFill.style.width = Math.min(pct, 100) + '%';
       progressText.textContent = text || (completed + ' / ' + total + ' 站');
     }
-
-    // ---- Settings ----
-    const settingsBtn = document.getElementById('settingsBtn');
-    const settingsDialog = document.getElementById('settingsDialog');
-    const cancelBtn = document.getElementById('cancelSettings');
-    const saveBtn = document.getElementById('saveSettings');
-    const saveStatus = document.getElementById('saveStatus');
-
-    const proxyEnabled = document.getElementById('proxyEnabled');
-    const httpProxy = document.getElementById('httpProxy');
-    const httpsProxy = document.getElementById('httpsProxy');
-    const apiKey = document.getElementById('apiKey');
-    const baseUrl = document.getElementById('baseUrl');
-    const modelName = document.getElementById('modelName');
-
-    let settingsData = {};
-
-    async function loadSettings() {
-      try {
-        const resp = await fetch('/api/settings');
-        settingsData = await resp.json();
-        proxyEnabled.checked = settingsData.proxy_enabled || false;
-        httpProxy.value = settingsData.http_proxy || '';
-        httpsProxy.value = settingsData.https_proxy || '';
-        apiKey.value = '';
-        baseUrl.value = settingsData.deepseek_base_url || 'https://api.deepseek.com/v1';
-        modelName.value = settingsData.deepseek_model || 'deepseek-chat';
-      } catch (e) { console.error('Failed to load settings', e); }
-    }
-
-    settingsBtn.addEventListener('click', () => { loadSettings(); settingsDialog.showModal(); });
-    cancelBtn.addEventListener('click', () => { settingsDialog.close(); });
-    settingsDialog.addEventListener('click', (e) => { if (e.target === settingsDialog) settingsDialog.close(); });
-
-    saveBtn.addEventListener('click', async () => {
-      const payload = {
-        proxy_enabled: proxyEnabled.checked,
-        http_proxy: httpProxy.value.trim(),
-        https_proxy: httpsProxy.value.trim(),
-        deepseek_api_key: apiKey.value.trim(),
-        deepseek_base_url: baseUrl.value.trim(),
-        deepseek_model: modelName.value.trim(),
-      };
-      try {
-        const resp = await fetch('/api/settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const data = await resp.json();
-        saveStatus.textContent = data.ok ? '已保存' : '保存失败';
-        saveStatus.className = 'save-status ' + (data.ok ? 'success' : 'error');
-        setTimeout(() => { saveStatus.className = 'save-status'; }, 2000);
-      } catch (e) {
-        saveStatus.textContent = '保存失败: ' + e.message;
-        saveStatus.className = 'save-status error';
-      }
-    });
-
-    // ---- Search (SSE) ----
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const q = input.value.trim();
-      if (!q) return;
-
-      resultsDiv.classList.add('hidden');
-      noResults.classList.add('hidden');
-      errorDiv.classList.add('hidden');
-      progressSection.classList.add('hidden');
-
-      // Start SSE search
-      const ai = aiEnhanced.checked;
-      const url = '/api/search/stream?q=' + encodeURIComponent(q) + '&ai_enhanced=' + ai;
-      let totalSites = 0;
-      let totalQueries = 0;
-      let completedSites = 0;
-    let lastSearchData = null;  // cached for tab switching
-    let currentGroupBy = 'season';
 
     // ---- Group toggle ----
     document.getElementById('groupBySeason').addEventListener('click', function() {

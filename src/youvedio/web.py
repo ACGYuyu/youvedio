@@ -1,4 +1,4 @@
-"""FastAPI web application — search page, API, and settings."""
+"""FastAPI web application — search page and API."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
 
 from youvedio.config import settings
 from youvedio.crawler.classifier import classify, group_by_season, group_by_subgroup
@@ -33,15 +32,6 @@ if _STATIC.exists():
     app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
 
 templates = Jinja2Templates(directory=str(_TEMPLATES)) if _TEMPLATES.exists() else None
-
-
-class SettingsPayload(BaseModel):
-    deepseek_api_key: str = ""
-    deepseek_base_url: str = "https://api.deepseek.com/v1"
-    deepseek_model: str = "deepseek-chat"
-    proxy_enabled: bool = False
-    http_proxy: str = ""
-    https_proxy: str = ""
 
 
 def _torrent_to_dict(r: TorrentResult) -> dict:
@@ -83,9 +73,7 @@ def _build_seasons_dict(
         for sg, seasons in raw_sg.items():
             result[sg] = {}
             for season_key, quality_map in seasons.items():
-                result[sg][season_key] = {
-                    q: _to_dicts(items) for q, items in quality_map.items()
-                }
+                result[sg][season_key] = {q: _to_dicts(items) for q, items in quality_map.items()}
         return result
 
     raw_sn = group_by_season(classified)
@@ -259,18 +247,6 @@ async def api_search_stream(
             "X-Accel-Buffering": "no",
         },
     )
-
-
-@app.get("/api/settings")
-async def get_settings():
-    return JSONResponse(settings.to_dict())
-
-
-@app.post("/api/settings")
-async def update_settings(payload: SettingsPayload):
-    settings.update(**payload.model_dump())
-    settings.apply_proxy()
-    return JSONResponse({"ok": True, **settings.to_dict()})
 
 
 @app.get("/search", response_class=HTMLResponse)
