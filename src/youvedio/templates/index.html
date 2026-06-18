@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouVedio - 种子/磁力搜索</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1 class="logo">YouVedio</h1>
+      <p class="subtitle">多语言种子 / 磁力搜索引擎</p>
+    </header>
+
+    <form class="search-form" id="searchForm">
+      <div class="search-box">
+        <input type="text" name="q" id="q" placeholder="输入动漫/剧集名称..." autofocus>
+        <button type="submit">搜索</button>
+      </div>
+      <div class="lang-tags">
+        <span>中文</span>
+        <span>English</span>
+        <span>日本語</span>
+      </div>
+    </form>
+
+    <div id="loading" class="loading hidden">
+      <div class="spinner"></div>
+      <p>正在搜索中，请稍候...</p>
+    </div>
+
+    <div id="results" class="hidden">
+      <div class="results-meta" id="resultsMeta"></div>
+      <div class="tabs" id="tabs"></div>
+      <div class="tab-content" id="tabContent"></div>
+    </div>
+
+    <div id="noResults" class="no-results hidden">
+      <p>未找到相关结果</p>
+    </div>
+
+    <div id="error" class="error hidden"></div>
+  </div>
+
+  <script>
+    const form = document.getElementById('searchForm');
+    const input = document.getElementById('q');
+    const loading = document.getElementById('loading');
+    const resultsDiv = document.getElementById('results');
+    const noResults = document.getElementById('noResults');
+    const errorDiv = document.getElementById('error');
+    const tabs = document.getElementById('tabs');
+    const tabContent = document.getElementById('tabContent');
+    const resultsMeta = document.getElementById('resultsMeta');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const q = input.value.trim();
+      if (!q) return;
+
+      loading.classList.remove('hidden');
+      resultsDiv.classList.add('hidden');
+      noResults.classList.add('hidden');
+      errorDiv.classList.add('hidden');
+
+      try {
+        const resp = await fetch('/api/search?q=' + encodeURIComponent(q));
+        const data = await resp.json();
+        loading.classList.add('hidden');
+
+        if (data.error) {
+          errorDiv.textContent = data.error;
+          errorDiv.classList.remove('hidden');
+          return;
+        }
+
+        if (data.total === 0) {
+          noResults.classList.remove('hidden');
+          return;
+        }
+
+        renderResults(data);
+      } catch (err) {
+        loading.classList.add('hidden');
+        errorDiv.textContent = '请求失败: ' + err.message;
+        errorDiv.classList.remove('hidden');
+      }
+    });
+
+    function renderResults(data) {
+      resultsDiv.classList.remove('hidden');
+
+      resultsMeta.textContent = `找到 ${data.total} 个结果 `;
+      if (data.sites_success !== undefined) {
+        resultsMeta.textContent += `| ${data.sites_success}/${data.sites_success + data.sites_failed} 站成功`;
+      }
+
+      const seasonKeys = Object.keys(data.seasons);
+      tabs.innerHTML = '';
+      tabContent.innerHTML = '';
+
+      if (seasonKeys.length === 0) {
+        tabContent.innerHTML = '<div class="empty">暂无分类数据</div>';
+        return;
+      }
+
+      const unclassKey = '_unclassified';
+      const hasUnclass = seasonKeys.includes(unclassKey);
+      const normalKeys = seasonKeys.filter(k => k !== unclassKey);
+
+      // Create tab buttons
+      const allKeys = [...normalKeys];
+      if (hasUnclass) allKeys.push(unclassKey);
+
+      allKeys.forEach((key, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'tab-btn' + (idx === 0 ? ' active' : '');
+        btn.textContent = key === unclassKey ? '未分类' : key;
+        btn.dataset.season = key;
+        btn.addEventListener('click', () => switchTab(key, allKeys));
+        tabs.appendChild(btn);
+      });
+
+      // Render first tab
+      switchTab(allKeys[0], allKeys);
+    }
+
+    function switchTab(activeKey, allKeys) {
+      allKeys.forEach(k => {
+        const btn = tabs.querySelector(`button[data-season="${k}"]`);
+        if (btn) btn.classList.toggle('active', k === activeKey);
+      });
+
+      fetch('/api/search?q=' + encodeURIComponent(input.value.trim()) + '&season=' + encodeURIComponent(activeKey))
+        .then(r => r.json())
+        .then(data => {
+          const seasonData = data.seasons[activeKey] || {};
+          let html = '';
+
+          const qualityKeys = Object.keys(seasonData);
+          if (qualityKeys.length === 0) {
+            html = '<div class="empty">该分类无结果</div>';
+          } else {
+            qualityKeys.forEach(q => {
+              html += `<h3 class="quality-header">${q}</h3>`;
+              html += `<div class="result-list">`;
+              seasonData[q].forEach(item => {
+                html += renderCard(item);
+              });
+              html += `</div>`;
+            });
+          }
+
+          tabContent.innerHTML = html;
+        });
+    }
+
+    function renderCard(item) {
+      const season = item.season ? `S${String(item.season).padStart(2, '0')}` : '';
+      const episode = item.episode ? `E${String(item.episode).padStart(2, '0')}` : '';
+      const epLabel = season || episode ? `[${season}${episode ? ' ' + episode : ''}]` : '';
+      const quality = item.quality || '';
+      const sourceType = item.source_type || '';
+      const tags = [quality, sourceType].filter(Boolean).join(' ');
+      const tagHtml = tags ? `<span class="tags">${tags}</span>` : '';
+
+      const size = item.size || '';
+      const seeders = item.seeders != null ? `${item.seeders} S` : '';
+
+      return `
+        <div class="result-card">
+          <div class="card-header">
+            <span class="card-title">${escapeHtml(item.title)}</span>
+            ${tagHtml}
+          </div>
+          <div class="card-meta">
+            <span class="source">${item.source}</span>
+            ${size ? `<span class="size">${size}</span>` : ''}
+            ${seeders ? `<span class="seeders">${seeders}</span>` : ''}
+          </div>
+          <div class="card-actions">
+            <button class="magnet-btn" onclick="copyMagnet('${escapeAttr(item.magnet)}')">复制磁力链接</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function copyMagnet(magnet) {
+      if (!magnet) return;
+      navigator.clipboard.writeText(magnet).then(() => {
+        alert('磁力链接已复制到剪贴板');
+      }).catch(() => {
+        window.prompt('手动复制:', magnet);
+      });
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function escapeAttr(text) {
+      return text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // Trigger search from URL param
+    const urlParams = new URLSearchParams(window.location.search);
+    const q = urlParams.get('q');
+    if (q) {
+      input.value = q;
+      form.dispatchEvent(new Event('submit'));
+    }
+  </script>
+</body>
+</html>

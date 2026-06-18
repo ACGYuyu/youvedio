@@ -1,38 +1,116 @@
-"""FastAPI web application."""
+"""FastAPI web application — search page and API."""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 from youvedio.config import settings
+from youvedio.crawler.classifier import classify, group_by_season
+from youvedio.crawler.engine import CrawlerEngine
+from youvedio.models import TorrentResult
+from youvedio.translation import translate_query
+
+logger = logging.getLogger(__name__)
+
+_HERE = Path(__file__).parent
+_TEMPLATES = _HERE / "templates"
+_STATIC = _HERE / "static"
 
 app = FastAPI(title="YouVedio")
 
+if _STATIC.exists():
+    app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
+
+templates = Jinja2Templates(directory=str(_TEMPLATES)) if _TEMPLATES.exists() else None
+
+
+def _torrent_to_dict(r: TorrentResult) -> dict:
+    return {
+        "source": r.source,
+        "title": r.title,
+        "magnet": r.magnet,
+        "info_hash": r.info_hash,
+        "size": r.size or "",
+        "seeders": r.seeders,
+        "leechers": r.leechers,
+        "season": r.season,
+        "episode": r.episode,
+        "quality": r.quality or "",
+        "source_type": r.source_type or "",
+        "page_url": r.page_url or "",
+    }
+
 
 @app.get("/", response_class=HTMLResponse)
-async def index():
-    """Render search page."""
-    return """
-    <!DOCTYPE html>
-    <html lang="zh-CN">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>YouVedio - 种子/磁力搜索</title>
-    </head>
-    <body>
-        <h1>YouVedio</h1>
-        <p>多语言种子/磁力搜索引擎</p>
-        <p style="color:#888">Coming soon...</p>
-    </body>
-    </html>
-    """
+async def index(request: Request):
+    if templates:
+        return templates.TemplateResponse(request, "index.html", {"request": request})
+    return HTMLResponse("<h1>YouVedio</h1><p>Template not found</p>")
 
 
 @app.get("/api/search")
-async def search(q: str = ""):
-    """Search torrents (placeholder)."""
-    return {"keyword": q, "results": [], "message": "Not implemented yet"}
+async def api_search(q: str = Query("")):
+    if not q.strip():
+        return JSONResponse({"keyword": q, "total": 0, "seasons": {}})
+
+    # Translate query for multi-language search
+    translations = translate_query(q)
+    unique_queries: list[str] = []
+    for val in [q] + [translations.get(k, "") for k in ("zh", "en", "ja")]:
+        if val and val not in unique_queries:
+            unique_queries.append(val)
+
+    # Crawl with each language query
+    engine = CrawlerEngine(max_concurrent=settings.crawler_max_concurrent)
+    all_results: list[TorrentResult] = []
+    total_success = 0
+    total_failed = 0
+    all_errors: list[str] = []
+
+    for query in unique_queries[:3]:  # max 3 languages
+        progress = engine.search(query)
+        all_results.extend(progress.results)
+        total_success += progress.success
+        total_failed += progress.failed
+        all_errors.extend(progress.errors)
+
+    # Classify and group
+    classified = [classify(r) for r in all_results]
+    seasons = group_by_season(classified)
+
+    # Serialize to dict for JSON response
+    seasons_dict: dict[str, dict[str, list[dict]]] = {}
+    for season_key, quality_map in seasons.items():
+        seasons_dict[season_key] = {}
+        for quality_key, items in quality_map.items():
+            seasons_dict[season_key][quality_key] = [_torrent_to_dict(r) for r in items]
+
+    return JSONResponse(
+        {
+            "keyword": q,
+            "total": len(all_results),
+            "sites_success": total_success,
+            "sites_failed": total_failed,
+            "errors": all_errors,
+            "seasons": seasons_dict,
+        }
+    )
+
+
+@app.get("/search", response_class=HTMLResponse)
+async def search_page(request: Request, q: str = Query("")):
+    if not q.strip():
+        return await index(request)
+    if templates:
+        return templates.TemplateResponse(request, "index.html", {"request": request, "q": q})
+    return HTMLResponse(f"<h1>Search: {q}</h1>")
 
 
 def run_server() -> None:
