@@ -115,6 +115,49 @@
 
 ---
 
+## v0.1.3 — MCP 返回值优化（待发布）
+
+**目标**: 消除双层 JSON 编码，让 Agent 直接解析搜索结果，无需 `py -c` 命令或 PowerShell 回退
+
+### 背景
+
+`search_torrents()` 返回 `str`（自己 `json.dumps` 一次），FastMCP 框架再包一层 `{"result": "..."}`，导致：
+- Agent 看到双层 JSON，必须先 `json.loads(outer['result'])` 解一层
+- 用 `ConvertFrom-Json` 超时，用 `IndexOf`/`Substring` 出错
+- 每次搜索后要花 5+ 分钟在解析上
+
+### 计划内容
+
+| 阶段 | 模块 | 文件 | 状态 |
+|------|------|------|------|
+| P1 | 返回类型 `str` → `dict`，消除双层编码 | `mcp_server.py` | ⏳ |
+| P2 | 新增 `summary_text` 纯文本摘要字段（可选） | `mcp_server.py` | ⏳ |
+
+### 改动说明
+
+**P1**（核心）：`search_torrents` 返回 `dict` 而非 `str`，FastMCP 框架直接序列化，Agent 在工具输出中看到规整的 JSON 对象：
+
+```json
+{"result": {"keyword": "...", "total": 680, "quality_summary": {...}, "seasons": {...}}}
+```
+
+改动仅：
+- `mcp_server.py:80` — 类型标注 `str` → `dict`
+- `mcp_server.py:93` — `return json.dumps(cached, ...)` → `return cached`
+- `mcp_server.py:115` — `return json.dumps(payload, ...)` → `return payload`
+
+无副作用，缓存仍存 dict，数据不变。
+
+**P2**（可选）：在 payload 中加 `summary_text` 字段，一行字概括所有内容：
+
+```python
+"summary_text": "S02: 4K(2), 2160P(17), 1080P(51), Unknown(13); _unclassified: 1080P(597)"
+```
+
+Agent 无需解析 JSON 即可了解搜索结果。
+
+---
+
 ## v0.2.0 — Generic Site Parser（待发布）
 
 **目标**: 引入配置驱动的通用站点解析器，新增 2 个站点（API + CSS 各一），减少新站适配工作量。
