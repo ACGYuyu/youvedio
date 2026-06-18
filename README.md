@@ -14,9 +14,34 @@
 
 ### 安装
 
+#### 推荐方式：虚拟环境（Linux / macOS）
+
 ```bash
-pip install -e ".[dev]"
+cd ~/youvedio
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e "[.dev]"
 pre-commit install
+```
+
+> 注意：Debian/Ubuntu 系统 Python 可能会阻止直接向系统环境安装第三方包，出现 `externally-managed-environment` 错误时请使用虚拟环境。
+
+#### 备用方式：Windows
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e "[.dev]"
+pre-commit install
+```
+
+#### 临时测试方式（不安装包）
+
+```bash
+cd ~/youvedio
+PYTHONPATH=./src python3 -m youvedio mcp
 ```
 
 ### 配置
@@ -38,11 +63,20 @@ $env:HTTPS_PROXY="http://127.0.0.1:10808"
 
 ```bash
 # stdio 模式（Claude Desktop / OpenCode）
-py -3.12 -m youvedio mcp
+python -m youvedio mcp
 
 # SSE 模式（HTTP 远程访问）
+python -m youvedio mcp --transport sse
+```
+
+#### Windows
+
+```powershell
+py -3.12 -m youvedio mcp
 py -3.12 -m youvedio mcp --transport sse
 ```
+
+> Linux 下请使用 `python3` 或虚拟环境内的 `python`，`py` 是 Windows 的 Python launcher。
 
 ## 安装到你的 MCP 客户端
 
@@ -66,7 +100,7 @@ cp -r .opencode/skills/youvedio-torrent-search ~/.config/opencode/skills/
   "mcp": {
     "youvedio": {
       "type": "local",
-      "command": ["py", "-3.12", "-m", "youvedio", "mcp"],
+      "command": ["python3", "-m", "youvedio", "mcp"],
       "environment": {
         "HTTP_PROXY": "{env:HTTP_PROXY}"
       }
@@ -75,14 +109,16 @@ cp -r .opencode/skills/youvedio-torrent-search ~/.config/opencode/skills/
 }
 ```
 
+Windows 下将 `"command": ["python3", ...]` 替换为 `["py", "-3.12", "-m", "youvedio", "mcp"]`。
+
 **Claude Desktop 配置（`claude_desktop_config.json`）：**
 
 ```json
 {
   "mcpServers": {
     "youvedio": {
-      "command": "py",
-      "args": ["-3.12", "-m", "youvedio", "mcp"],
+      "command": "python3",
+      "args": ["-m", "youvedio", "mcp"],
       "env": {
         "HTTP_PROXY": "http://127.0.0.1:10808",
         "HTTPS_PROXY": "http://127.0.0.1:10808"
@@ -92,6 +128,8 @@ cp -r .opencode/skills/youvedio-torrent-search ~/.config/opencode/skills/
 }
 ```
 
+Windows 下将 `"command": "python3"` 和 `"args": ["-m", ...]` 替换为 `"command": "py"` 和 `"args": ["-3.12", "-m", "youvedio", "mcp"]`。
+
 ### 方式二：SSE 模式（远程部署）
 
 MCP 服务器部署在远程服务器上，通过 HTTP 访问。
@@ -99,9 +137,11 @@ MCP 服务器部署在远程服务器上，通过 HTTP 访问。
 **启动服务器：**
 
 ```bash
-py -3.12 -m youvedio mcp --transport sse
-# 默认监听 http://0.0.0.0:8000
+python3 -m youvedio mcp --transport sse
+# 默认监听 http://0.0.0.0:8000，可在 .env 中修改 SERVER_HOST / SERVER_PORT
 ```
+
+Windows: `py -3.12 -m youvedio mcp --transport sse`
 
 **OpenCode 配置（`opencode.json`）：**
 
@@ -145,8 +185,8 @@ Agent 会自动加载 MCP 工具和 skill，然后你可以直接说"我想看XX
 {
   "mcpServers": {
     "youvedio": {
-      "command": "py",
-      "args": ["-3.12", "-m", "youvedio", "mcp"],
+      "command": "python3",
+      "args": ["-m", "youvedio", "mcp"],
       "env": {
         "HTTP_PROXY": "http://127.0.0.1:10808",
         "HTTPS_PROXY": "http://127.0.0.1:10808"
@@ -155,6 +195,8 @@ Agent 会自动加载 MCP 工具和 skill，然后你可以直接说"我想看XX
   }
 }
 ```
+
+Windows 下将 `"command": "python3"` 替换为 `"command": "py"`，args 加上 `"-3.12"`。
 
 ## MCP 工具
 
@@ -220,9 +262,10 @@ ruff check . && ruff format . && mypy src/ && pytest -v
 因默认 Python 可能不是 3.12，可使用：
 
 ```bash
-py -3.12 -m ruff check .
-py -3.12 -m mypy src/
-py -3.12 -m pytest -v
+# Linux
+python3 -m ruff check . && python3 -m mypy src/ && python3 -m pytest -v
+# Windows
+py -3.12 -m ruff check . && py -3.12 -m mypy src/ && py -3.12 -m pytest -v
 ```
 
 ### 代码风格
