@@ -48,14 +48,13 @@
     <div id="error" class="error hidden"></div>
   </div>
 
-  <!-- Settings Modal -->
-  <div class="modal-overlay hidden" id="settingsModal">
-    <div class="modal">
-      <div class="modal-header">
+  <!-- Settings Dialog -->
+  <dialog id="settingsDialog">
+    <div class="dialog-content">
+      <div class="dialog-header">
         <h2>设置</h2>
-        <button class="modal-close" id="modalClose">&times;</button>
       </div>
-      <div class="modal-body">
+      <div class="dialog-body">
         <div class="settings-section">
           <h3>🔌 代理配置</h3>
           <label class="toggle-row">
@@ -71,7 +70,6 @@
             <input type="text" id="httpsProxy" placeholder="http://127.0.0.1:10808">
           </div>
         </div>
-
         <div class="settings-section">
           <h3>🤖 AI 模型配置</h3>
           <div class="input-row">
@@ -88,12 +86,13 @@
           </div>
         </div>
       </div>
-      <div class="modal-footer">
+      <div class="dialog-footer">
         <span class="save-status" id="saveStatus"></span>
+        <button class="btn-cancel" id="cancelSettings">取消</button>
         <button class="btn-primary" id="saveSettings">保存</button>
       </div>
     </div>
-  </div>
+  </dialog>
 
   <script>
     const form = document.getElementById('searchForm');
@@ -108,8 +107,8 @@
 
     // ---- Settings ----
     const settingsBtn = document.getElementById('settingsBtn');
-    const settingsModal = document.getElementById('settingsModal');
-    const modalClose = document.getElementById('modalClose');
+    const settingsDialog = document.getElementById('settingsDialog');
+    const cancelBtn = document.getElementById('cancelSettings');
     const saveBtn = document.getElementById('saveSettings');
     const saveStatus = document.getElementById('saveStatus');
 
@@ -137,25 +136,17 @@
       }
     }
 
-    function closeSettings() {
-      settingsModal.classList.add('hidden');
-    }
-
     settingsBtn.addEventListener('click', () => {
       loadSettings();
-      settingsModal.classList.remove('hidden');
+      settingsDialog.showModal();
     });
 
-    modalClose.addEventListener('click', closeSettings);
-
-    settingsModal.addEventListener('click', (e) => {
-      if (e.target === settingsModal) closeSettings();
+    cancelBtn.addEventListener('click', () => {
+      settingsDialog.close();
     });
 
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !settingsModal.classList.contains('hidden')) {
-        closeSettings();
-      }
+    settingsDialog.addEventListener('click', (e) => {
+      if (e.target === settingsDialog) settingsDialog.close();
     });
 
     saveBtn.addEventListener('click', async () => {
