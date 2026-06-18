@@ -17,8 +17,7 @@
 | P2 | 内置站点解析器 | 7 个站点解析器 | ✅ |
 | P3 | 爬虫引擎 | Scrapling 并发爬虫 + 重试 | ✅ |
 | P4 | 分类器 | Season/画质/字幕组提取 + quality_summary | ✅ |
-| P5 | 搜索引擎发现 | Google/Bing 搜索 → URL 提取 | ✅ |
-| P6 | 整合优化 | 缓存 + MCP 服务 + 测试 109 个 81% 覆盖率 | ✅ |
+| P5 | 整合优化 | 缓存 + MCP 服务 + 测试 109 个 81% 覆盖率 | ✅ |
 
 ### 版本日志
 
@@ -27,8 +26,6 @@
 | 2026-06-18 | `feat(scaffold): initial project structure` | 初始化项目骨架 |
 | 2026-06-18 | `feat(sources): add 7 built-in site parsers` | 站点解析器基类 + 7 个内置站 |
 | 2026-06-18 | `feat(crawler): add crawler engine with retry and title classifier` | 爬虫引擎 + 分类器 |
-| 2026-06-18 | `feat: add search engine discoverer` | 搜索引擎发现 |
-| 2026-06-18 | `feat: MCP server, remove AI/Web, pure data MCP` | MCP 服务化 |
 | 2026-06-18 | `feat: quality_summary, cache, test coverage 81%` | 优化 + 测试 |
 
 ---
