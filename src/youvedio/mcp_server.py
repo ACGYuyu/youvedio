@@ -56,7 +56,7 @@ def _build_quality_summary(seasons) -> dict:
             batch_count = sum(1 for i in items if not i.get("episode"))
             # For _unclassified, group by actual quality instead of "All"
             if sk == "_unclassified":
-                actual_q = items[0].get("quality") if items else "Unknown" or "Unknown"
+                actual_q = items[0].get("quality") if items else "Unknown"
                 q = actual_q or "Unknown"
             summary[sk][q] = {
                 "total": len(items),
