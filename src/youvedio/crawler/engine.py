@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class CrawlProgress:
-    """Progress report for a crawl session."""
+    """Progress report and results for a crawl session."""
 
     total_sites: int = 0
     completed: int = 0
@@ -23,6 +23,7 @@ class CrawlProgress:
     failed: int = 0
     results_found: int = 0
     errors: list[str] = field(default_factory=list)
+    results: list[TorrentResult] = field(default_factory=list)
 
 
 class CrawlerEngine:
@@ -68,6 +69,7 @@ class CrawlerEngine:
                 progress.completed += 1
 
         progress.results_found = len(all_results)
+        progress.results = all_results
         return progress
 
     def _fetch_with_retry(self, parser, keyword: str) -> list[TorrentResult]:

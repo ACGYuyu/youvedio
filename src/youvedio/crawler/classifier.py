@@ -7,12 +7,12 @@ import re
 from youvedio.models import TorrentResult
 
 _SEASON_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(r"[Ss](\d{1,2})\s*[Ee]"),          # S01E05
-    re.compile(r"[Ss]eason[.\s]*(\d{1,2})"),       # Season 1, season.02
-    re.compile(r"第(\d{1,2})\s*[季部]"),            # 第1季, 第二部
+    re.compile(r"[Ss](\d{1,2})\s*[Ee]"),  # S01E05
+    re.compile(r"[Ss]eason[.\s]*(\d{1,2})"),  # Season 1, season.02
+    re.compile(r"第(\d{1,2})\s*[季部]"),  # 第1季, 第二部
     re.compile(r"(\d{1,2})(?:st|nd|rd|th)\s*[Ss]eason"),
-    re.compile(r"Part[\s.]*(\d{1,2})"),             # Part 1, Part.2
-    re.compile(r"(\d{1,2})期"),                     # 第一期
+    re.compile(r"Part[\s.]*(\d{1,2})"),  # Part 1, Part.2
+    re.compile(r"(\d{1,2})期"),  # 第一期
     re.compile(r"(?:^|\s)[Ss](\d{1,2})(?:\s|$|\.)"),  # standalone S01
 ]
 

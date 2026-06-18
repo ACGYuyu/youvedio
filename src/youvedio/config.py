@@ -16,7 +16,9 @@ class Settings:
     server_host: str = "0.0.0.0"
     server_port: int = 8000
     crawler_timeout: int = 30
-    crawler_max_concurrent: int = 5
+    crawler_max_concurrent: int = 3
+    http_proxy: str = ""
+    https_proxy: str = ""
     _extra: dict[str, str] = field(default_factory=dict, repr=False)
 
     @classmethod
@@ -29,7 +31,9 @@ class Settings:
             server_host=os.getenv("SERVER_HOST", "0.0.0.0"),
             server_port=int(os.getenv("SERVER_PORT", "8000")),
             crawler_timeout=int(os.getenv("CRAWLER_TIMEOUT", "30")),
-            crawler_max_concurrent=int(os.getenv("CRAWLER_MAX_CONCURRENT", "5")),
+            crawler_max_concurrent=int(os.getenv("CRAWLER_MAX_CONCURRENT", "3")),
+            http_proxy=os.getenv("HTTP_PROXY", ""),
+            https_proxy=os.getenv("HTTPS_PROXY", ""),
         )
 
 
