@@ -68,10 +68,11 @@ class TestHelpers:
         assert "A" in summary["S01"]["1080P"]["subgroups"]
         assert "B" in summary["S01"]["1080P"]["subgroups"]
 
-    def test_quality_summary_skips_unclassified(self):
-        seasons_dict = {"_unclassified": {"All": [{"title": "x"}]}}
+    def test_quality_summary_includes_unclassified(self):
+        seasons_dict = {"_unclassified": {"All": [{"title": "x", "quality": "1080P"}]}}
         summary = _build_quality_summary(seasons_dict)
-        assert "_unclassified" not in summary
+        assert "_unclassified" in summary
+        assert summary["_unclassified"]["1080P"]["total"] == 1
 
 
 def _mock_search(mock_get, mock_engine_cls, cache_value=None, results=None):

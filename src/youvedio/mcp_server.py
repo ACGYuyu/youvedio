@@ -45,17 +45,19 @@ def _seasons_to_json(seasons):
 
 
 def _build_quality_summary(seasons) -> dict:
-    """Build a compact summary of available qualities per season."""
+    """Build a compact summary of available qualities per season and unclassified."""
     summary: dict = {}
     for sk, qm in seasons.items():
-        if sk == "_unclassified":
-            continue
         summary[sk] = {}
         for q, items in qm.items():
             subgroups = [i.get("subgroup", "") for i in items if i.get("subgroup")]
             subgroups = list(dict.fromkeys(subgroups))
             episode_count = sum(1 for i in items if i.get("episode"))
             batch_count = sum(1 for i in items if not i.get("episode"))
+            # For _unclassified, group by actual quality instead of "All"
+            if sk == "_unclassified":
+                actual_q = items[0].get("quality") if items else "Unknown" or "Unknown"
+                q = actual_q or "Unknown"
             summary[sk][q] = {
                 "total": len(items),
                 "subgroups": subgroups,
