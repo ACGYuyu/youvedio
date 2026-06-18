@@ -137,18 +137,24 @@
       }
     }
 
+    function closeSettings() {
+      settingsModal.classList.add('hidden');
+    }
+
     settingsBtn.addEventListener('click', () => {
       loadSettings();
       settingsModal.classList.remove('hidden');
     });
 
-    modalClose.addEventListener('click', () => {
-      settingsModal.classList.add('hidden');
-    });
+    modalClose.addEventListener('click', closeSettings);
 
     settingsModal.addEventListener('click', (e) => {
-      if (e.target === settingsModal) {
-        settingsModal.classList.add('hidden');
+      if (e.target === settingsModal) closeSettings();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !settingsModal.classList.contains('hidden')) {
+        closeSettings();
       }
     });
 
