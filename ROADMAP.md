@@ -49,7 +49,7 @@
 
 ## 发布标准
 
-- [ ] ruff check / ruff format 通过
-- [ ] mypy 通过（无新增错误）
-- [ ] pytest 通过（覆盖率 > 80%）
+- [x] ruff check / ruff format 通过
+- [x] mypy 通过（无新增错误）
+- [x] pytest 通过（覆盖率 > 80%）✅ 81%
 - [ ] 人工确认搜索结果准确性
