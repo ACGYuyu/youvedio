@@ -16,6 +16,8 @@ from youvedio.storage.cache import set as cache_set
 server = FastMCP(
     name="YouVedio",
     instructions="Torrent/magnet search engine for anime and video content.",
+    host=settings.server_host,
+    transport_security=None,
 )
 
 
