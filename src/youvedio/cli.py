@@ -23,14 +23,15 @@ def version():
 )
 def mcp(transport: str):
     """Start MCP server for LLM agent integration."""
+    from youvedio.config import settings
     from youvedio.mcp_server import server
 
     if transport == "sse":
-        click.echo("Starting MCP server (SSE) on http://0.0.0.0:8000", err=True)
-    else:
-        click.echo("Starting MCP server (stdio) \u2014 connect via Claude Desktop", err=True)
-    # Use if/else instead of casting
-    if transport == "sse":
+        server.settings.host = settings.server_host
+        server.settings.port = settings.server_port
+        addr = f"{settings.server_host}:{settings.server_port}"
+        click.echo(f"Starting MCP server (SSE) on http://{addr}", err=True)
         server.run(transport="sse")
     else:
+        click.echo("Starting MCP server (stdio) \u2014 connect via Claude Desktop", err=True)
         server.run(transport="stdio")
