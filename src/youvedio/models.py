@@ -2,51 +2,51 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Optional
-
-from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 
-class TorrentResult(BaseModel):
+@dataclass
+class TorrentResult:
     """Single torrent/magnet result."""
 
-    source: str = Field(description="Site name, e.g. nyaa.si")
-    title: str = Field(description="Torrent title")
-    magnet: str = Field(description="Magnet URI")
-    info_hash: Optional[str] = Field(None, description="BitTorrent info hash")
-    size: Optional[str] = Field(None, description="Human-readable size")
-    seeders: Optional[int] = Field(None)
-    leechers: Optional[int] = Field(None)
-    season: Optional[int] = Field(None, description="Season number")
-    episode: Optional[int] = Field(None, description="Episode number")
-    quality: Optional[str] = Field(
-        None, description="Resolution: 4K, 1080p, 720p, etc."
-    )
-    source_type: Optional[str] = Field(
-        None, description="Blu-ray, WEBRip, etc."
-    )
-    page_url: Optional[str] = Field(None, description="Torrent page URL")
-    crawled_at: datetime = Field(default_factory=datetime.utcnow)
+    source: str
+    title: str
+    magnet: str
+    info_hash: str | None = None
+    size: str | None = None
+    seeders: int | None = None
+    leechers: int | None = None
+    season: int | None = None
+    episode: int | None = None
+    quality: str | None = None
+    source_type: str | None = None
+    page_url: str | None = None
+    crawled_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-class SearchResult(BaseModel):
+@dataclass
+class SearchResult:
     """Grouped search results for a query."""
 
     keyword: str
-    searched_at: datetime = Field(default_factory=datetime.utcnow)
-    seasons: dict[str, dict[str, list[TorrentResult]]] = Field(
-        default_factory=dict,
-        description="Structure: {season_label: {quality: [results]}}",
-    )
-    unclassified: list[TorrentResult] = Field(default_factory=list)
+    searched_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    seasons: dict[str, dict[str, list[TorrentResult]]] = field(default_factory=dict)
+    unclassified: list[TorrentResult] = field(default_factory=list)
 
+    @property
+    def total(self) -> int:
+        count = len(self.unclassified)
+        for season_group in self.seasons.values():
+            for results in season_group.values():
+                count += len(results)
+        return count
 
-class ClassifiedResult(BaseModel):
-    """Output schema for JSON export."""
-
-    keyword: str
-    searched_at: str
-    total: int
-    seasons: dict[str, dict[str, list[TorrentResult]]]
-    unclassified: list[TorrentResult]
+    def to_dict(self) -> dict:
+        return {
+            "keyword": self.keyword,
+            "searched_at": self.searched_at.isoformat(),
+            "total": self.total,
+            "seasons": self.seasons,
+            "unclassified": self.unclassified,
+        }
