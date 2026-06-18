@@ -1,7 +1,5 @@
 """Tests for Pydantic data models."""
 
-from datetime import datetime, timezone
-
 from youvedio.models import TorrentResult
 
 

@@ -165,37 +165,50 @@ ruff check . && mypy src/
 
 解析器会自动注册，`search_torrents` 会自动包含新站点。
 
-## 开发
-
-### 命令
+## 使用 OpenCode 开发
 
 ```bash
-ruff check . && ruff format . && mypy src/ && pytest -v
+# 1. 克隆
+git clone <repo> && cd youvedio
+
+# 2. 安装
+pip install -e ".[dev]"
+pre-commit install
+cp .env.example .env        # 编辑 .env 配置代理
+
+# 3. 启动 MCP Server（终端1）
+py -3.12 -m youvedio mcp
+
+# 4. 启动 OpenCode（终端2，项目目录下）
+opencode
+
+# 5. 开发循环
+# 改代码 → ruff check && format && mypy && pytest
 ```
 
-因默认 Python 可能不是 3.12，可使用：
+项目根目录的 `opencode.json` 已配置好 MCP 服务器和开发指令，OpenCode 启动后会自动加载。
 
-```bash
-py -3.12 -m ruff check .
-py -3.12 -m mypy src/
-py -3.12 -m pytest -v
+### 提交规范
+
 ```
-
-### 代码风格
-
-| 规则 | 约定 |
-|------|------|
-| Lint + Format | Ruff (line-length=100) |
-| 类型检查 | MyPy (渐进式) |
-| 测试 | pytest + asyncio 模式 |
-| 命名 | 类 `PascalCase` / 函数 `snake_case` / 文件小写+下划线 |
-| 提交 | Conventional Commits: `feat(scope): msg` |
+feat(nyaa): add season/quality classifier for nyaa.si parser
+fix(dmhy): handle missing seeders field
+refactor(engine): extract base fetcher class
+test(classifier): add season extraction tests
+docs: update README with installation guide
+```
 
 ### 分支策略
 
 ```
-main → dev → feat/xxx → PR → dev → (发布) → main
+main       ← 稳定分支
+  dev      ← 开发主分支
+    feat/xxx    ← 功能分支
+    fix/xxx     ← 修复分支
+    refactor/xxx ← 重构分支
 ```
+
+PR 流程: `feat/xxx` → PR → `dev` → (发布) → `main`
 
 ## 技术栈
 

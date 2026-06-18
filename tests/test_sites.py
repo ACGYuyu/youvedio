@@ -1,14 +1,13 @@
 """Tests for site parsers — base class helpers and basic parsing."""
 
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from youvedio.sources.sites.base import SiteParser
 
 
 class _ConcreteParser(SiteParser):
     """Concrete parser for testing base class methods."""
+
     name = "test_site"
     base_url = "https://test.com"
     lang = "en"
@@ -16,7 +15,7 @@ class _ConcreteParser(SiteParser):
     def search_url(self, keyword: str) -> str:
         return f"{self.base_url}/search?q={keyword}"
 
-    def parse(self, html, source=None):
+    def parse(self, html, source=None):  # noqa: ARG002
         return []
 
 
@@ -43,9 +42,7 @@ class TestSiteParserBase:
         assert SiteParser.safe_int("abc") == 0
 
     def test_extract_info_hash_valid(self):
-        h = SiteParser.extract_info_hash(
-            "magnet:?xt=urn:btih:abc123def456"
-        )
+        h = SiteParser.extract_info_hash("magnet:?xt=urn:btih:abc123def456")
         assert h == "abc123def456"
 
     def test_extract_info_hash_empty(self):
