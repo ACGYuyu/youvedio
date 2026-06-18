@@ -213,7 +213,7 @@
             noResults.classList.remove('hidden');
             return;
           }
-          renderResults(lastSearchData);
+          enhanceWithAI(lastSearchData, q, ai);
         });
 
         activeEventSource.addEventListener('error', () => {
@@ -255,7 +255,7 @@
         addLog('request', 'ok', lastSearchData.total + ' 条结果');
         if (lastSearchData.error) { errorDiv.textContent = lastSearchData.error; errorDiv.classList.remove('hidden'); return; }
         if (lastSearchData.total === 0) { noResults.classList.remove('hidden'); return; }
-        renderResults(lastSearchData);
+        await enhanceWithAI(lastSearchData, q, ai);
       } catch (err) {
         abortSearch();
         progressSection.classList.add('hidden');
@@ -263,6 +263,45 @@
         errorDiv.textContent = '请求失败: ' + err.message;
         errorDiv.classList.remove('hidden');
       }
+    }
+
+    async function enhanceWithAI(data, q, ai) {
+      if (!ai || !data.seasons || data.total < 3) {
+        renderResults(data);
+        return;
+      }
+      // Flatten all items from seasons into a list
+      var allItems = [];
+      var seasonKeys = Object.keys(data.seasons);
+      seasonKeys.forEach(function(sk) {
+        var qMap = data.seasons[sk];
+        Object.keys(qMap).forEach(function(qk) {
+          qMap[qk].forEach(function(item) {
+            allItems.push(item);
+          });
+        });
+      });
+      if (allItems.length < 3) { renderResults(data); return; }
+
+      addLog('ai', 'fetching', 'AI 分类中...');
+      try {
+        var resp = await fetch('/api/classify-ai', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({results: allItems, keyword: q})
+        });
+        var aiData = await resp.json();
+        if (aiData.seasons) {
+          data.seasons = aiData.seasons;
+          data.total = aiData.total;
+          addLog('ai', 'ok', 'AI 分类完成');
+        } else {
+          addLog('ai', 'fail', 'AI 分类无返回');
+        }
+      } catch (e) {
+        addLog('ai', 'fail', e.message);
+      }
+      renderResults(data);
     }
 
     function renderResults(data) {

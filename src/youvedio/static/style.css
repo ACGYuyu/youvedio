@@ -208,6 +208,7 @@ header {
 .log-ok { color: #28a745; }
 .log-fail { color: #dc3545; }
 .log-fetching { color: #0071e3; }
+.log-ai { color: #8e44ad; }
 
 .lang-tags {
   display: flex;
