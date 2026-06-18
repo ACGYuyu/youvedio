@@ -4,8 +4,8 @@
 
 ## 功能特性
 
-- **多站并发** — 同时爬取 7 个种子站（Nyaa、动漫花园、蜜柑计划、1337x、ACG.RIP、AniDEX、TokyoTosho）
-- **反爬绕过** — 基于 Scrapling，自动处理 Cloudflare 等反爬机制
+- **多站并发** — 同时爬取 5 个种子站（Nyaa、动漫花园、蜜柑计划、1337x、TokyoTosho），支持配置驱动快速扩展
+- **TLS 指纹** — 基于 curl-cffi 模拟 Chrome 浏览器指纹，绕过基础反爬
 - **智能分类** — 正则提取季数/画质/字幕组，按最新季→最高清排序
 - **本地缓存** — 10 分钟 TTL，相同关键词秒回
 - **MCP 协议** — 标准 Model Context Protocol，兼容 Claude Desktop / OpenCode 等客户端
@@ -77,6 +77,21 @@ py -3.12 -m youvedio mcp --transport sse
 ```
 
 > Linux 下请使用 `python3` 或虚拟环境内的 `python`，`py` 是 Windows 的 Python launcher。
+
+### Docker 部署
+
+```bash
+# SSE 模式（默认监听 0.0.0.0:8000）
+docker run -d --name youvedio -p 8000:8000 \
+  -e HTTP_PROXY=http://host:10808 \
+  -e HTTPS_PROXY=http://host:10808 \
+  youvedio:0.2.0
+
+# 无代理环境（国外服务器）
+docker run -d --name youvedio -p 8000:8000 youvedio:0.2.0
+```
+
+> 镜像基于 `python:3.12-slim`，仅含必要依赖，**490MB**。可通过 `--entrypoint sh` 进入容器调试。
 
 ## 安装到你的 MCP 客户端
 
@@ -274,7 +289,7 @@ py -3.12 -m ruff check . && py -3.12 -m mypy src/ && py -3.12 -m pytest -v
 |------|------|
 | Lint + Format | Ruff (line-length=100) |
 | 类型检查 | MyPy (渐进式) |
-| 测试 | pytest + asyncio 模式，109 个测试，81% 覆盖率 |
+| 测试 | pytest + asyncio 模式，132 个测试，84% 覆盖率 |
 | 命名 | 类 `PascalCase` / 函数 `snake_case` / 文件小写+下划线 |
 | 提交 | Conventional Commits: `feat(scope): msg` |
 
@@ -307,7 +322,7 @@ src/youvedio/
 │       ├── anidex.py        # AniDEX
 │       └── tokyotosho.py    # TokyoTosho
 ├── crawler/
-│   ├── engine.py            # Scrapling 爬虫引擎（并发）
+│   ├── engine.py            # 并发爬虫引擎（curl-cffi + httpx）
 │   └── classifier.py        # 季/画质/字幕组分类器
 ├── storage/
 │   └── cache.py             # 本地缓存（TTL 10分钟）
@@ -354,7 +369,8 @@ ruff check . && mypy src/
 ## 技术栈
 
 - **Python** 3.12+（推荐 3.12，避免 3.15 alpha）
-- **Scrapling** — 网页爬取与反爬绕过
+- **curl-cffi** — TLS 指纹 HTTP 请求
+- **Scrapling** — HTML 解析
 - **MCP Python SDK** — Model Context Protocol 实现
 - **Ruff / MyPy / pytest** — 代码质量
 

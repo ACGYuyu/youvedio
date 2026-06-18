@@ -1,6 +1,6 @@
 """Tests for 1337x parser with mock HTML."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from youvedio.sources.sites.x1337 import X1337Parser
 
@@ -64,15 +64,9 @@ class TestX1337Parser:
         assert "1337x.to" in url
         assert "/search/Frieren/1/" in url
 
-    @patch("scrapling.fetchers.StealthyFetcher")
-    def test_fetch_stealthy_with_detail(self, mock_fetcher):
-        mock_search = MagicMock()
-        mock_search.text = _HTML
-        mock_detail = MagicMock()
-        mock_detail.text = _DETAIL_HTML
-        mock_fetcher.fetch.side_effect = [mock_search, mock_detail]
-
-        p = X1337Parser()
-        results = p.fetch("test")
-        assert len(results) == 1
-        assert "btih:abc123def456" in results[0].magnet
+    def test_fetch_fallback_to_parent(self):
+        """Verify fallback to parent fetch when StealthyFetcher is unavailable."""
+        with patch("youvedio.sources.sites.base.SiteParser.fetch", return_value=[]):
+            p = X1337Parser()
+            results = p.fetch("test")
+            assert results == []

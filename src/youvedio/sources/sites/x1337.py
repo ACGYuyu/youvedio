@@ -61,36 +61,34 @@ class X1337Parser(SiteParser):
         return self.css_attr(doc, "a[href^='magnet:']", "href")
 
     def fetch(self, keyword: str) -> list[TorrentResult]:
-        """Override: 1337x often needs stealth fetching + follow detail for magnet."""
-        url = self.search_url(keyword)
+        """Try StealthyFetcher if available, fall back to parent curl_cffi."""
         try:
             from scrapling.fetchers import StealthyFetcher
+        except ImportError:
+            return super().fetch(keyword)
 
-            kwargs: dict = {
-                "headless": True,
-                "timeout": settings.crawler_timeout * 1000,
-            }
-            proxy = self._proxies()
-            saved = self._cleanup_env_proxy() if not proxy else None
-            if proxy:
-                kwargs["proxies"] = proxy
-            try:
-                page = StealthyFetcher.fetch(url, **kwargs)
-                results = self.parse(page.text, source=self.name)
+        url = self.search_url(keyword)
+        proxy = self._proxies()
+        kwargs: dict = {
+            "headless": True,
+            "timeout": settings.crawler_timeout * 1000,
+        }
+        if proxy:
+            kwargs["proxies"] = proxy
+        try:
+            page = StealthyFetcher.fetch(url, **kwargs)
+            results = self.parse(page.text, source=self.name)
 
-                for r in results:
-                    if r.page_url and not r.magnet:
-                        try:
-                            detail = StealthyFetcher.fetch(r.page_url, **kwargs)
-                            magnet = self.parse_detail_page(detail.text)
-                            if magnet:
-                                r.magnet = magnet
-                                r.info_hash = self.extract_info_hash(magnet)
-                        except Exception:
-                            continue
-            finally:
-                if saved is not None:
-                    self._restore_env_proxy(saved)
+            for r in results:
+                if r.page_url and not r.magnet:
+                    try:
+                        detail = StealthyFetcher.fetch(r.page_url, **kwargs)
+                        magnet = self.parse_detail_page(detail.text)
+                        if magnet:
+                            r.magnet = magnet
+                            r.info_hash = self.extract_info_hash(magnet)
+                    except Exception:
+                        continue
             return results
         except Exception:
             return super().fetch(keyword)

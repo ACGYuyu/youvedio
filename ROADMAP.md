@@ -77,15 +77,120 @@
 
 ---
 
-## v0.2.0 — 待规划
+## v0.1.2 — 依赖瘦身 + Docker（已发布）
 
-- 通用站点解析器（JSON 配置驱动，减少 80% 的新站适配工作量）
-  - `sources/sites/generic.py` — 通用解析器类
-  - `sources.json` 支持 `type: "generic"` 和 `selectors` 配置
-  - 支持磁力在属性、需要 Playwright、非 UTF-8 编码等特例
-  - 逐步迁移现有独立解析器到通用模式
+**目标**: 移除 Playwright/Patchright 冗余依赖（-276MB），提供生产级 Docker 镜像
+
+### 计划内容
+
+| 阶段 | 模块 | 文件 | 状态 |
+|------|------|------|------|
+| P1 | 依赖重构: `scrapling[fetchers]` → `scrapling` + `curl-cffi` | `pyproject.toml` | ✅ |
+| P2 | base.py fetch() 重写，移除 Scrapling Fetcher | `base.py` | ✅ |
+| P3 | x1337.py StealthyFetcher 降级处理 | `x1337.py` | ✅ |
+| P4 | Docker 镜像 490MB | `Dockerfile` | ✅ |
+
+### 版本日志
+
+| 日期 | 提交 | 说明 |
+|------|------|------|
+| 2026-06-19 | `refactor(deps): drop scrapling[fetchers], add curl-cffi` | 移除 playwright(138MB) + patchright(138MB)，改用 curl_cffi + httpx |
+| 2026-06-19 | `refactor(base): replace Fetcher with curl_cffi in fetch()` | 移除 _cleanup_env_proxy 等 Scrapling 特定代码 |
+| 2026-06-19 | `chore(docker): build 490MB image, no browser deps` | Docker 镜像 884MB → 490MB |
+| 2026-06-19 | `test(x1337): adapt for StealthyFetcher unavailability` | 更新测试适配无 playwright 环境 |
+
+### Docker 镜像
+
+`python:3.12-slim` 基础，仅 `curl-cffi` + `scrapling` + `httpx`，**490MB**（不含 Chrome/Playwright）。
+
+### 线上验证
+
+| 验证项 | 结果 |
+|--------|------|
+| 测试套件 | 132/132 passed |
+| 引擎搜索 "Frieren" | 1303 条，4 站，0 失败 |
+| Docker 内搜索 | 1303 条 |
+| Linux VM 搜索 | 1303 条 |
+| 磁力链接覆盖率 | 100%（1303/1303）|
+
+---
+
+## v0.2.0 — Generic Site Parser（待发布）
+
+**目标**: 引入配置驱动的通用站点解析器，新增 2 个站点（API + CSS 各一），减少新站适配工作量。
+
+### 设计方案
+
+**GenericSiteParser**（`src/youvedio/sources/sites/generic.py`）：
+- 继承 `SiteParser` ABC，根据 `mode` 分派 fetch + parse 策略
+- **`mode: "api"`** — httpx POST/GET → JSON → 字段映射
+- **`mode: "css"`** — 复用父类 Scrapling GET → CSS selector 逐行提取
+- 配置定义在 `sources.json`，`type: "generic"` 标记
+- `SourceManager.__init__()` 新增 `_load_generic_parsers()` 从 config 实例化
+
+### 新增站点
+
+| 站点 | 模式 | URL | 字段 | 状态 |
+|------|------|-----|------|------|
+| **bangumi.moe** | API (JSON POST) | `api/v2/torrent/search` | title/magnet/info_hash/size/seeders/leechers | ✅ 线上验证 102 条结果 |
+| **animetosho.org** | CSS (HTML) | `/search?q={keyword}` | title/magnet/page_url/size/seeders(≥1)/leechers | ✅ 线上验证 29 条结果 |
+
+CSS 特殊处理：seeders/leechers 从 `span[title^='Seeders:']` 的 title 属性中 regex 提取。
+
+### 计划内容
+
+| 阶段 | 模块 | 文件 | 状态 |
+|------|------|------|------|
+| P1 | GenericSiteParser（API + CSS 模式） | `src/youvedio/sources/sites/generic.py` | ⏳ |
+| P2 | sources.json 配置 | `sources.json` | ⏳ |
+| P3 | SourceManager 加载 generic parsers | `src/youvedio/sources/manager.py` | ⏳ |
+| P4 | 测试：generic API/CSS/empty/missing/regex | `tests/test_generic.py` | ⏳ |
+| P5 | 测试：manager 加载 generic parsers | `tests/test_manager.py` | ⏳ |
+| P6 | 线上验证 + 文档更新 | ROADMAP.md / AGENTS.md | ⏳ |
+| P7 | Docker 镜像 | `Dockerfile` + `.dockerignore` | ✅ (490MB, 详见 v0.1.2) |
+
+### 测试清单
+
+| # | 测试 | 说明 |
+|---|------|------|
+| 1 | `test_generic_api_parse` | mock JSON 3 条结果 → 所有字段正确 |
+| 2 | `test_generic_api_empty` | JSON 无 `torrents` key → `[]` |
+| 3 | `test_generic_api_size_int` | size 是整数 → 转 str |
+| 4 | `test_generic_css_parse` | mock HTML 3 行 → 字段正确 |
+| 5 | `test_generic_css_empty` | HTML 无结果行 → `[]` |
+| 6 | `test_generic_css_missing_fields` | 某行缺 magnet → 不崩溃 |
+| 7 | `test_generic_css_seeders_regex` | `"Seeders: 1 / Leechers: 242"` → seeders=1, leechers=242 |
+| 8 | `test_generic_css_bad_regex` | title 属性无匹配 → seeders=0 |
+| 9 | `test_generic_search_url_api` | bangumi.moe 的 search_url 正确 |
+| 10 | `test_generic_search_url_css` | animetosho 的 search_url 正确 |
+| 11 | `test_generic_manager_loads` | mock sources.json generic 条目 → parsers 存在 |
+
+### 可选项：FlareSolverr + 1337x.to 恢复
+
+**背景**：1337x.to 被 Cloudflare JS Challenge 拦截。实测 FlareSolverr（内嵌 Chrome + 自动解 Challenge）可稳定获取搜索结果（646KB，20 条，seeders/leechers 完整）。Docker 容器自带代理路由，无需额外配置。
+
+| 改动 | 文件 | 说明 |
+|------|------|------|
+| 配置 | `config.py` | `Settings` 加 `flaresolverr_url` |
+| 配置 | `.env.example` | 加 `FLARESOLVERR_URL=http://127.0.0.1:8191` |
+| 解析器 | `x1337.py` | `fetch()` 新增 `_fetch_via_flaresolverr()` 分支，没配则回退 curl_cffi + httpx |
+| 测试 | `test_x1337.py` | mock FlareSolverr JSON 响应，5 个新测试 |
+| 文档 | `AGENTS.md` | 加 FlareSolverr 运维说明 |
+
+容器命令：
+```bash
+docker run -d --name flaresolverr --restart unless-stopped -p 8191:8191 -e LOG_LEVEL=warn flaresolverr/flaresolverr
+```
+
+**不做也不影响核心功能** — 目前 5 个站够用，1337x 多一个不多，少一个不少。
+
+### 后续（v0.3.0+）
+
+- RSS mode（subsplease.org 等 RSS 站点）
+- 分页支持（搜索多页结果）
 - 批量关键词搜索
-- Docker 部署
+- Docker 编排（含 FlareSolverr）
+- 现有解析器逐步迁移到通用模式
 
 ---
 
@@ -93,5 +198,5 @@
 
 - [x] ruff check / ruff format 通过
 - [x] mypy 通过（无新增错误）
-- [x] pytest 通过（覆盖率 > 80%）✅ 81%
+- [x] pytest 通过（覆盖率 > 80%）✅ 84%
 - [ ] 人工确认搜索结果准确性

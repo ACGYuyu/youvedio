@@ -13,7 +13,8 @@ authors = [
 ]
 license = {text = "MIT"}
 dependencies = [
-    "scrapling[fetchers]>=0.4.9",
+    "scrapling>=0.4.9",
+    "curl-cffi>=0.7.0",
     "mcp>=1.27.0",
     "httpx>=0.28.0",
     "python-dotenv>=1.0.0",

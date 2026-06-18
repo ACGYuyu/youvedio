@@ -9,16 +9,9 @@ from scrapling.parser import Selector
 from youvedio.config import settings
 from youvedio.models import TorrentResult
 
-# Scrapling creates its own INFO handler — silence it after import
+# Silence INFO noise from scrapling's parser internals
 logging.getLogger("scrapling").setLevel(logging.WARNING)
-for _name in (
-    "scrapling.fetchers",
-    "scrapling.parser",
-    "scrapling.core",
-    "scrapling.engines",
-    "scrapling.engines.toolbelt",
-):
-    logging.getLogger(_name).setLevel(logging.WARNING)
+logging.getLogger("scrapling.parser").setLevel(logging.WARNING)
 
 
 class SiteParser(ABC):
@@ -59,53 +52,47 @@ class SiteParser(ABC):
             return None
         return {"http": http, "https": https or http}
 
-    @staticmethod
-    def _cleanup_env_proxy() -> dict[str, str | None]:
-        """Pop proxy env vars that Scrapling may read internally; return old values."""
-        saved: dict[str, str | None] = {}
-        for var in (
-            "HTTP_PROXY",
-            "HTTPS_PROXY",
-            "http_proxy",
-            "https_proxy",
-            "ALL_PROXY",
-            "all_proxy",
-        ):
-            saved[var] = os.environ.pop(var, None)
-        return saved
-
-    @staticmethod
-    def _restore_env_proxy(saved: dict[str, str | None]) -> None:
-        for var, val in saved.items():
-            if val is not None:
-                os.environ[var] = val
-            else:
-                os.environ.pop(var, None)
-
     def fetch(self, keyword: str) -> list[TorrentResult]:
-        """Fetch and parse search results from the site."""
-        from scrapling.fetchers import Fetcher
+        """Fetch and parse search results from the site.
 
+        Uses curl_cffi (TLS fingerprint) with httpx fallback.
+        """
         url = self.search_url(keyword)
+        proxy = self._proxies()
+
         try:
-            kwargs: dict = {
-                "stealthy_headers": True,
-                "timeout": settings.crawler_timeout,
+            from curl_cffi import requests as curl_requests
+
+            sess_kw: dict = {
                 "impersonate": "chrome",
+                "timeout": settings.crawler_timeout,
             }
-            proxy = self._proxies()
-            saved = self._cleanup_env_proxy() if not proxy else None
-            try:
-                if proxy:
-                    kwargs["proxies"] = proxy
-                resp = Fetcher.get(url, **kwargs)
-            finally:
-                if saved is not None:
-                    self._restore_env_proxy(saved)
-            html = resp.body.decode(resp.encoding or "utf-8")
-            return self.parse(html, source=self.name)
+            if proxy:
+                sess_kw["proxies"] = proxy
+            with curl_requests.Session(**sess_kw) as s:
+                resp = s.get(url, allow_redirects=True)
+                if resp.status_code == 200:
+                    return self.parse(resp.text, source=self.name)
         except Exception:
-            return []
+            pass
+
+        try:
+            import httpx
+
+            client_kw: dict = {
+                "timeout": settings.crawler_timeout,
+                "follow_redirects": True,
+            }
+            if proxy:
+                client_kw["proxy"] = proxy.get("http", proxy.get("https"))
+            with httpx.Client(**client_kw) as client:
+                resp = client.get(url)
+                if resp.status_code == 200:
+                    return self.parse(resp.text, source=self.name)
+        except Exception:
+            pass
+
+        return []
 
     def css_text(self, el: Selector, css: str) -> str:
         """Extract text via CSS selector, returning empty string on failure."""
