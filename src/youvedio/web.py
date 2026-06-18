@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from youvedio.config import settings
-from youvedio.crawler.classifier import classify, group_by_season, group_by_subgroup
+from youvedio.crawler.classifier import classify, group_by_season, group_by_subgroup, relevance_sort
 from youvedio.crawler.engine import CrawlerEngine
 from youvedio.models import TorrentResult
 from youvedio.translation import translate_query
@@ -111,6 +111,7 @@ def _run_crawl(q: str, ai_enhanced: bool) -> tuple[list[TorrentResult], int, int
         total_failed += progress.failed
         all_errors.extend(progress.errors)
 
+    all_results = relevance_sort(q, all_results)
     return all_results, total_success, total_failed, all_errors
 
 
