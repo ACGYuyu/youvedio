@@ -41,6 +41,8 @@ class AcgRipParser(SiteParser):
 
                 magnet = self.css_attr(row, "td:nth-child(3) a", "href")
                 size = self.normalize_size(self.css_text(row, "td:nth-child(4)::text"))
+                seeders = self.safe_int(self.css_text(row, "td:nth-child(5)::text"))
+                leechers = self.safe_int(self.css_text(row, "td:nth-child(6)::text"))
                 info_hash = self.extract_info_hash(magnet)
 
                 results.append(
@@ -50,6 +52,8 @@ class AcgRipParser(SiteParser):
                         magnet=magnet,
                         info_hash=info_hash,
                         size=size,
+                        seeders=seeders,
+                        leechers=leechers,
                         page_url=page_url,
                     )
                 )

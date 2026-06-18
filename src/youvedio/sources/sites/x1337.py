@@ -53,20 +53,44 @@ class X1337Parser(SiteParser):
 
         return results
 
+    def parse_detail_page(self, html: str) -> str:
+        """Extract magnet link from a torrent detail page."""
+        from scrapling.parser import Selector
+
+        doc = Selector(html)
+        return self.css_attr(doc, "a[href^='magnet:']", "href")
+
     def fetch(self, keyword: str) -> list[TorrentResult]:
-        """Override: 1337x often needs stealth fetching."""
+        """Override: 1337x often needs stealth fetching + follow detail for magnet."""
         url = self.search_url(keyword)
         try:
             from scrapling.fetchers import StealthyFetcher
 
             kwargs: dict = {
                 "headless": True,
-                "timeout": settings.crawler_timeout,
+                "timeout": settings.crawler_timeout * 1000,
             }
             proxy = self._proxies()
+            saved = self._cleanup_env_proxy() if not proxy else None
             if proxy:
                 kwargs["proxies"] = proxy
-            page = StealthyFetcher.fetch(url, **kwargs)
-            return self.parse(page.text, source=self.name)
+            try:
+                page = StealthyFetcher.fetch(url, **kwargs)
+                results = self.parse(page.text, source=self.name)
+
+                for r in results:
+                    if r.page_url and not r.magnet:
+                        try:
+                            detail = StealthyFetcher.fetch(r.page_url, **kwargs)
+                            magnet = self.parse_detail_page(detail.text)
+                            if magnet:
+                                r.magnet = magnet
+                                r.info_hash = self.extract_info_hash(magnet)
+                        except Exception:
+                            continue
+            finally:
+                if saved is not None:
+                    self._restore_env_proxy(saved)
+            return results
         except Exception:
             return super().fetch(keyword)

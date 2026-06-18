@@ -59,7 +59,8 @@ class CrawlerEngine:
         all_results: list[TorrentResult] = []
         lock = threading.Lock()
 
-        def _fetch_one(name: str, parser: object) -> tuple[str, list[TorrentResult]]:
+        def _fetch_one(name: str, parser: object) -> tuple[str, list[TorrentResult], bool]:
+            logger.info("Fetching %s ...", name)
             if on_progress:
                 on_progress(name, "fetching", 0, 0)
             try:
@@ -67,25 +68,29 @@ class CrawlerEngine:
                 classified = [classify(r) for r in results]
                 with lock:
                     all_results.extend(classified)
+                logger.info("Fetched %s: %d results", name, len(results))
                 if on_progress:
                     on_progress(name, "ok", 0, 0)
-                return name, results
+                return name, results, False
             except Exception as e:
+                logger.warning("Failed to fetch %s: %s", name, e)
                 with lock:
                     progress.errors.append(f"{name}: {e}")
                 if on_progress:
                     on_progress(name, "fail", 0, 0)
-                return name, []
+                return name, [], True
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_concurrent) as pool:
             futs = {pool.submit(_fetch_one, name, parser) for name, parser in parsers.items()}
             for fut in concurrent.futures.as_completed(futs):
-                name, results = fut.result()
+                name, results, errored = fut.result()
                 with lock:
                     progress.completed += 1
                     if results:
                         progress.success += 1
                         progress.results_found += len(results)
+                    elif errored:
+                        progress.failed += 1
 
         progress.results = list(all_results)
         progress.results_found = len(all_results)

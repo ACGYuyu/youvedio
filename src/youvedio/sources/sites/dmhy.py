@@ -23,21 +23,17 @@ class DmhyParser(SiteParser):
 
         for row in doc.css("table > tbody > tr"):
             try:
-                title = self.css_text(row, "td:nth-child(2) a::text")
+                title = self.css_text(row, "td:nth-child(3) a:last-child::text")
                 if not title:
                     continue
 
-                magnet = ""
-                page_url = ""
-                for a in row.css("td:last-child a[href]"):
-                    href = self.css_attr(a, "", "href")
-                    if href.startswith("magnet:"):
-                        magnet = href
-                    elif "dmhy.org" in href or "topics/view" in href:
-                        page_url = href
-
-                size = self.normalize_size(self.css_text(row, "td:nth-child(4)::text"))
-                seeders = self.safe_int(self.css_text(row, "td:nth-child(5)::text"))
+                page_url = self.extract_page_url(
+                    self.css_attr(row, "td:nth-child(3) a:last-child", "href")
+                )
+                magnet = self.css_attr(row, "td:nth-child(4) a[href^='magnet:']", "href")
+                size = self.normalize_size(self.css_text(row, "td:nth-child(5)::text"))
+                seeders = self.safe_int(self.css_text(row, "td:nth-child(6)::text"))
+                leechers = self.safe_int(self.css_text(row, "td:nth-child(7)::text"))
                 info_hash = self.extract_info_hash(magnet)
 
                 results.append(
@@ -48,6 +44,7 @@ class DmhyParser(SiteParser):
                         info_hash=info_hash,
                         size=size,
                         seeders=seeders,
+                        leechers=leechers,
                         page_url=page_url,
                     )
                 )

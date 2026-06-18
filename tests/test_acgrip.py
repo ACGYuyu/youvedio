@@ -9,6 +9,8 @@ _HTML = """<table class="ui table table-hover table-condensed">
 <td><a href="/t/100">[FBI] Show S01 1080p BDRip</a></td>
 <td><a href="magnet:?xt=urn:btih:abc">torrent</a></td>
 <td>1.4 GiB</td>
+<td class="text-center">100</td>
+<td class="text-center">10</td>
 </tr>
 </tbody>
 </table>"""
@@ -25,6 +27,16 @@ class TestAcgRipParser:
         p = AcgRipParser()
         results = p.parse(_HTML)
         assert "btih:abc" in results[0].magnet
+
+    def test_parse_seeders(self):
+        p = AcgRipParser()
+        results = p.parse(_HTML)
+        assert results[0].seeders == 100
+
+    def test_parse_leechers(self):
+        p = AcgRipParser()
+        results = p.parse(_HTML)
+        assert results[0].leechers == 10
 
     def test_parse_empty(self):
         p = AcgRipParser()

@@ -11,6 +11,15 @@ _HTML = """<table class="table-list"><tbody>
 </tr>
 </tbody></table>"""
 
+_DETAIL_HTML = """<html><body>
+<div class="torrent-detail">
+<h1>[FBI] Show S01 1080p</h1>
+<ul class="list">
+<li><strong>Magnet Link:</strong> <a href="magnet:?xt=urn:btih:abc123def456">Magnet</a></li>
+</ul>
+</div>
+</body></html>"""
+
 
 class TestX1337Parser:
     def test_parse_title(self):
@@ -24,10 +33,24 @@ class TestX1337Parser:
         results = p.parse(_HTML)
         assert results[0].seeders == 100
 
+    def test_parse_leechers(self):
+        p = X1337Parser()
+        results = p.parse(_HTML)
+        assert results[0].leechers == 10
+
     def test_parse_size(self):
         p = X1337Parser()
         results = p.parse(_HTML)
         assert results[0].size == "1.4 GiB"
+
+    def test_parse_detail_page_magnet(self):
+        p = X1337Parser()
+        magnet = p.parse_detail_page(_DETAIL_HTML)
+        assert magnet == "magnet:?xt=urn:btih:abc123def456"
+
+    def test_parse_detail_page_empty(self):
+        p = X1337Parser()
+        assert p.parse_detail_page("") == ""
 
     def test_parse_empty(self):
         p = X1337Parser()

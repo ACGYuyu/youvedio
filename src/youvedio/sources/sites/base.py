@@ -59,6 +59,29 @@ class SiteParser(ABC):
             return None
         return {"http": http, "https": https or http}
 
+    @staticmethod
+    def _cleanup_env_proxy() -> dict[str, str | None]:
+        """Pop proxy env vars that Scrapling may read internally; return old values."""
+        saved: dict[str, str | None] = {}
+        for var in (
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "ALL_PROXY",
+            "all_proxy",
+        ):
+            saved[var] = os.environ.pop(var, None)
+        return saved
+
+    @staticmethod
+    def _restore_env_proxy(saved: dict[str, str | None]) -> None:
+        for var, val in saved.items():
+            if val is not None:
+                os.environ[var] = val
+            else:
+                os.environ.pop(var, None)
+
     def fetch(self, keyword: str) -> list[TorrentResult]:
         """Fetch and parse search results from the site."""
         from scrapling.fetchers import Fetcher
@@ -71,9 +94,14 @@ class SiteParser(ABC):
                 "impersonate": "chrome",
             }
             proxy = self._proxies()
-            if proxy:
-                kwargs["proxies"] = proxy
-            resp = Fetcher.get(url, **kwargs)
+            saved = self._cleanup_env_proxy() if not proxy else None
+            try:
+                if proxy:
+                    kwargs["proxies"] = proxy
+                resp = Fetcher.get(url, **kwargs)
+            finally:
+                if saved is not None:
+                    self._restore_env_proxy(saved)
             html = resp.body.decode(resp.encoding or "utf-8")
             return self.parse(html, source=self.name)
         except Exception:

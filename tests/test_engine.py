@@ -16,7 +16,11 @@ def _make_mock_parser(name, results):
 
 
 class TestCrawlerEngine:
-    def test_search_returns_crawl_progress(self):
+    @patch("youvedio.crawler.engine.SourceManager")
+    def test_search_returns_crawl_progress(self, mock_sm_cls):
+        mock_sm = MagicMock()
+        mock_sm.enabled_parsers = {}
+        mock_sm_cls.return_value = mock_sm
         engine = CrawlerEngine(max_concurrent=2, retry_count=0)
         progress = engine.search("test")
         assert isinstance(progress, CrawlProgress)
@@ -64,7 +68,7 @@ class TestCrawlerEngine:
         assert progress.total_sites == 1
         assert progress.completed == 1
         assert progress.success == 0
-        assert progress.failed == 0  # exceptions in _fetch_one don't increment failed
+        assert progress.failed == 1
 
     @patch("youvedio.crawler.engine.SourceManager")
     def test_search_classifies_results(self, mock_sm_cls):
