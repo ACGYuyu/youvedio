@@ -77,13 +77,15 @@ class Settings:
         self.save()
 
     def apply_proxy(self) -> None:
-        """Set proxy environment variables for curl_cffi/httpx."""
+        """Set proxy environment variables for curl_cffi/httpx.
+
+        Only sets proxy when proxy_enabled is True; never removes existing
+        proxy configuration to avoid breaking system proxy settings.
+        """
         if self.proxy_enabled and self.http_proxy:
             os.environ["HTTP_PROXY"] = self.http_proxy
             os.environ["HTTPS_PROXY"] = self.https_proxy or self.http_proxy
-        elif not self.proxy_enabled:
-            os.environ.pop("HTTP_PROXY", None)
-            os.environ.pop("HTTPS_PROXY", None)
+        # Do NOT unset proxy when disabled — leave system proxy alone
 
     @staticmethod
     def get_data_dir() -> Path:
