@@ -77,14 +77,14 @@ class TestHelpers:
 def _mock_search(mock_get, mock_engine_cls, cache_value=None, results=None):
     """Helper to set up mocks for search_torrents tests."""
     mock_get.return_value = cache_value
-    if results is not None:
-        mock_progress = MagicMock()
-        mock_progress.results = results
-        mock_progress.success = len(results)
-        mock_progress.failed = 0
-        mock_engine = MagicMock()
-        mock_engine.search.return_value = mock_progress
-        mock_engine_cls.return_value = mock_engine
+    mock_get.return_value = cache_value
+    mock_progress = MagicMock()
+    mock_progress.results = results or []
+    mock_progress.success = len(results) if results else 0
+    mock_progress.failed = 0
+    mock_engine = MagicMock()
+    mock_engine.search.return_value = mock_progress
+    mock_engine_cls.return_value = mock_engine
 
 
 @patch("youvedio.mcp_server.CrawlerEngine")
