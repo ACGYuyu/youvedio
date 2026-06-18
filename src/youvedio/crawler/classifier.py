@@ -143,3 +143,29 @@ def group_by_subgroup(
                 groups[sg][season][quality].sort(key=lambda x: x.seeders or 0, reverse=True)
 
     return groups
+
+
+def relevance_sort(query: str, results: list[TorrentResult]) -> list[TorrentResult]:
+    """Sort results by relevance to the search query.
+
+    Exact matches at title start get highest priority, then standalone
+    word matches, then substring matches. Within same level, seeders
+    determine order.
+    """
+    q_lower = query.lower().strip()
+    if not q_lower:
+        return results
+
+    def score(r: TorrentResult) -> tuple[int, int]:
+        title_lower = r.title.lower()
+        if title_lower.startswith(q_lower) or f"[{q_lower}" in title_lower:
+            return (3, r.seeders or 0)
+        import re
+
+        if re.search(rf"\b{re.escape(q_lower)}\b", title_lower):
+            return (2, r.seeders or 0)
+        if q_lower in title_lower:
+            return (1, r.seeders or 0)
+        return (0, r.seeders or 0)
+
+    return sorted(results, key=score, reverse=True)
