@@ -114,19 +114,33 @@
       progressText.textContent = text || (completed + ' / ' + total + ' 站');
     }
 
-    // ---- Group toggle ----
+    // ---- Group toggle (re-fetches with new group_by) ----
+    function reSearch(gb) {
+      if (!lastSearchData || !lastSearchData.keyword) return;
+      currentGroupBy = gb;
+      const q = lastSearchData.keyword;
+      const ai = aiEnhanced.checked;
+      progressSection.classList.remove('hidden');
+      progressSection.classList.add('shown');
+      resetProgress(1);
+      updateProgress(0, 1, '切换分组...');
+      fetch('/api/search?q=' + encodeURIComponent(q) + '&ai_enhanced=' + ai + '&group_by=' + gb)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          progressSection.classList.add('hidden');
+          progressSection.classList.remove('shown');
+          lastSearchData = data;
+          if (data.total === 0) { noResults.classList.remove('hidden'); return; }
+          renderResults(data);
+        });
+    }
+
     document.getElementById('groupBySeason').addEventListener('click', function() {
-      if (currentGroupBy === 'season') return;
-      currentGroupBy = 'season';
-      document.querySelectorAll('.group-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.group === 'season'); });
-      if (lastSearchData) renderResults(lastSearchData);
+      if (currentGroupBy !== 'season') reSearch('season');
     });
 
     document.getElementById('groupBySubgroup').addEventListener('click', function() {
-      if (currentGroupBy === 'subgroup') return;
-      currentGroupBy = 'subgroup';
-      document.querySelectorAll('.group-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.group === 'subgroup'); });
-      if (lastSearchData) renderResults(lastSearchData);
+      if (currentGroupBy !== 'subgroup') reSearch('subgroup');
     });
 
     // ---- Search (SSE) ----
@@ -154,7 +168,6 @@
           if (!progressSection.classList.contains('shown')) {
             progressSection.classList.remove('hidden');
             progressSection.classList.add('shown');
-            loading.classList.add('hidden');
             const total = (data.total || 1) * (data.total_queries || 1);
             resetProgress(total);
           }
@@ -197,7 +210,7 @@
         });
 
         setTimeout(() => {
-          if (progressSection.classList.contains('hidden') && loading.classList.contains('hidden')) {
+          if (progressSection.classList.contains('hidden')) {
             fallbackSearch(q, ai, gb);
           }
         }, 3000);
@@ -214,7 +227,6 @@
         progressSection.classList.add('shown');
         resetProgress(1);
       }
-      loading.classList.add('hidden');
       updateProgress(0, 1, '正在搜索...');
       addLog('request', 'fetching', '');
       try {
