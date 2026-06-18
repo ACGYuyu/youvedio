@@ -1,5 +1,7 @@
 """Tests for 1337x parser with mock HTML."""
 
+from unittest.mock import MagicMock, patch
+
 from youvedio.sources.sites.x1337 import X1337Parser
 
 _HTML = """<table class="table-list"><tbody>
@@ -55,3 +57,22 @@ class TestX1337Parser:
     def test_parse_empty(self):
         p = X1337Parser()
         assert p.parse("") == []
+
+    def test_search_url(self):
+        p = X1337Parser()
+        url = p.search_url("Frieren")
+        assert "1337x.to" in url
+        assert "/search/Frieren/1/" in url
+
+    @patch("scrapling.fetchers.StealthyFetcher")
+    def test_fetch_stealthy_with_detail(self, mock_fetcher):
+        mock_search = MagicMock()
+        mock_search.text = _HTML
+        mock_detail = MagicMock()
+        mock_detail.text = _DETAIL_HTML
+        mock_fetcher.fetch.side_effect = [mock_search, mock_detail]
+
+        p = X1337Parser()
+        results = p.fetch("test")
+        assert len(results) == 1
+        assert "btih:abc123def456" in results[0].magnet

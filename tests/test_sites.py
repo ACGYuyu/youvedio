@@ -1,5 +1,6 @@
 """Tests for site parsers — base class helpers and basic parsing."""
 
+import os
 from unittest.mock import patch
 
 from youvedio.sources.sites.base import SiteParser
@@ -74,6 +75,29 @@ class TestSiteParserBase:
         p = _ConcreteParser()
         result = p.fetch("keyword")
         assert result == []
+
+    def test_proxies_returns_none_when_empty(self):
+        """_proxies returns None when no proxy is configured."""
+        p = _ConcreteParser()
+        with (
+            patch("youvedio.sources.sites.base.settings.http_proxy", ""),
+            patch("youvedio.sources.sites.base.settings.https_proxy", ""),
+            patch.dict(os.environ, {}, clear=True),
+        ):
+            assert p._proxies() is None
+
+    def test_proxies_returns_dict_when_set(self):
+        """_proxies returns proxy dict when configured."""
+        p = _ConcreteParser()
+        with (
+            patch("youvedio.sources.sites.base.settings.http_proxy", "http://proxy:8080"),
+            patch("youvedio.sources.sites.base.settings.https_proxy", ""),
+            patch.dict(os.environ, {}, clear=True),
+        ):
+            result = p._proxies()
+            assert result is not None
+            assert "http://proxy:8080" in result["http"]
+            assert result["https"] == "http://proxy:8080"
 
 
 class TestParseEdgeCases:

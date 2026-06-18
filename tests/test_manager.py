@@ -73,6 +73,26 @@ def test_get_parser_missing(mock_load, mock_cfg):
 
 @patch("youvedio.sources.manager._SOURCES_FILE")
 @patch("youvedio.sources.manager._load_parsers")
+def test_search_site_enabled(mock_load, mock_cfg) -> None:
+    p = MagicMock()
+    p.name = "s"
+    p.enabled = True
+    from youvedio.models import TorrentResult
+
+    p.fetch.return_value = [TorrentResult.create(source="s", title="R", magnet="")]
+    mock_load.return_value = {"s": p}
+    import json
+
+    mock_cfg.exists.return_value = True
+    mock_cfg.read_text.return_value = json.dumps([{"name": "s", "enabled": True}])
+    mgr = SourceManager()
+    results = mgr.search_site("s", "kw")
+    assert len(results) == 1
+    assert results[0].source == "s"
+
+
+@patch("youvedio.sources.manager._SOURCES_FILE")
+@patch("youvedio.sources.manager._load_parsers")
 def test_search_all_sorts_by_seeders(mock_load, mock_cfg):
     a, b = MagicMock(), MagicMock()
     a.name, a.enabled = "a", True
