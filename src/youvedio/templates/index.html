@@ -7,6 +7,11 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+  <nav class="navbar">
+    <a href="/" class="nav-logo">YouVedio</a>
+    <button class="settings-btn" id="settingsBtn">设置</button>
+  </nav>
+
   <div class="container">
     <header>
       <h1 class="logo">YouVedio</h1>
@@ -43,6 +48,53 @@
     <div id="error" class="error hidden"></div>
   </div>
 
+  <!-- Settings Modal -->
+  <div class="modal-overlay hidden" id="settingsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>设置</h2>
+        <button class="modal-close" id="modalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-section">
+          <h3>🔌 代理配置</h3>
+          <label class="toggle-row">
+            <span>启用代理</span>
+            <input type="checkbox" id="proxyEnabled">
+          </label>
+          <div class="input-row">
+            <label>HTTP 代理</label>
+            <input type="text" id="httpProxy" placeholder="http://127.0.0.1:10808">
+          </div>
+          <div class="input-row">
+            <label>HTTPS 代理</label>
+            <input type="text" id="httpsProxy" placeholder="http://127.0.0.1:10808">
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>🤖 AI 模型配置</h3>
+          <div class="input-row">
+            <label>API Key</label>
+            <input type="password" id="apiKey" placeholder="sk-xxxxxxxxxxxxxx">
+          </div>
+          <div class="input-row">
+            <label>Base URL</label>
+            <input type="text" id="baseUrl" placeholder="https://api.deepseek.com/v1">
+          </div>
+          <div class="input-row">
+            <label>模型名称</label>
+            <input type="text" id="modelName" placeholder="deepseek-chat">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span class="save-status" id="saveStatus"></span>
+        <button class="btn-primary" id="saveSettings">保存</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const form = document.getElementById('searchForm');
     const input = document.getElementById('q');
@@ -54,6 +106,84 @@
     const tabContent = document.getElementById('tabContent');
     const resultsMeta = document.getElementById('resultsMeta');
 
+    // ---- Settings ----
+    const settingsBtn = document.getElementById('settingsBtn');
+    const settingsModal = document.getElementById('settingsModal');
+    const modalClose = document.getElementById('modalClose');
+    const saveBtn = document.getElementById('saveSettings');
+    const saveStatus = document.getElementById('saveStatus');
+
+    const proxyEnabled = document.getElementById('proxyEnabled');
+    const httpProxy = document.getElementById('httpProxy');
+    const httpsProxy = document.getElementById('httpsProxy');
+    const apiKey = document.getElementById('apiKey');
+    const baseUrl = document.getElementById('baseUrl');
+    const modelName = document.getElementById('modelName');
+
+    let settingsData = {};
+
+    async function loadSettings() {
+      try {
+        const resp = await fetch('/api/settings');
+        settingsData = await resp.json();
+        proxyEnabled.checked = settingsData.proxy_enabled || false;
+        httpProxy.value = settingsData.http_proxy || '';
+        httpsProxy.value = settingsData.https_proxy || '';
+        apiKey.value = '';
+        baseUrl.value = settingsData.deepseek_base_url || 'https://api.deepseek.com/v1';
+        modelName.value = settingsData.deepseek_model || 'deepseek-chat';
+      } catch (e) {
+        console.error('Failed to load settings', e);
+      }
+    }
+
+    settingsBtn.addEventListener('click', () => {
+      loadSettings();
+      settingsModal.classList.remove('hidden');
+    });
+
+    modalClose.addEventListener('click', () => {
+      settingsModal.classList.add('hidden');
+    });
+
+    settingsModal.addEventListener('click', (e) => {
+      if (e.target === settingsModal) {
+        settingsModal.classList.add('hidden');
+      }
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      const payload = {
+        proxy_enabled: proxyEnabled.checked,
+        http_proxy: httpProxy.value.trim(),
+        https_proxy: httpsProxy.value.trim(),
+        deepseek_api_key: apiKey.value.trim(),
+        deepseek_base_url: baseUrl.value.trim(),
+        deepseek_model: modelName.value.trim(),
+      };
+
+      try {
+        const resp = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        if (data.ok) {
+          saveStatus.textContent = '已保存';
+          saveStatus.className = 'save-status success';
+          setTimeout(() => { saveStatus.className = 'save-status'; }, 2000);
+        } else {
+          saveStatus.textContent = '保存失败';
+          saveStatus.className = 'save-status error';
+        }
+      } catch (e) {
+        saveStatus.textContent = '保存失败: ' + e.message;
+        saveStatus.className = 'save-status error';
+      }
+    });
+
+    // ---- Search ----
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const q = input.value.trim();
@@ -91,9 +221,9 @@
     function renderResults(data) {
       resultsDiv.classList.remove('hidden');
 
-      resultsMeta.textContent = `找到 ${data.total} 个结果 `;
+      resultsMeta.textContent = '找到 ' + data.total + ' 个结果';
       if (data.sites_success !== undefined) {
-        resultsMeta.textContent += `| ${data.sites_success}/${data.sites_success + data.sites_failed} 站成功`;
+        resultsMeta.textContent += ' | ' + data.sites_success + '/' + (data.sites_success + data.sites_failed) + ' 站成功';
       }
 
       const seasonKeys = Object.keys(data.seasons);
@@ -107,96 +237,85 @@
 
       const unclassKey = '_unclassified';
       const hasUnclass = seasonKeys.includes(unclassKey);
-      const normalKeys = seasonKeys.filter(k => k !== unclassKey);
-
-      // Create tab buttons
-      const allKeys = [...normalKeys];
+      const normalKeys = seasonKeys.filter(function(k) { return k !== unclassKey; });
+      const allKeys = [].concat(normalKeys);
       if (hasUnclass) allKeys.push(unclassKey);
 
-      allKeys.forEach((key, idx) => {
-        const btn = document.createElement('button');
+      allKeys.forEach(function(key, idx) {
+        var btn = document.createElement('button');
         btn.className = 'tab-btn' + (idx === 0 ? ' active' : '');
         btn.textContent = key === unclassKey ? '未分类' : key;
         btn.dataset.season = key;
-        btn.addEventListener('click', () => switchTab(key, allKeys));
+        btn.addEventListener('click', function() { switchTab(key, data); });
         tabs.appendChild(btn);
       });
 
-      // Render first tab
-      switchTab(allKeys[0], allKeys);
+      switchTab(allKeys[0], data);
     }
 
-    function switchTab(activeKey, allKeys) {
-      allKeys.forEach(k => {
-        const btn = tabs.querySelector(`button[data-season="${k}"]`);
-        if (btn) btn.classList.toggle('active', k === activeKey);
+    function switchTab(activeKey, data) {
+      document.querySelectorAll('.tab-btn').forEach(function(btn) {
+        btn.classList.toggle('active', btn.dataset.season === activeKey);
       });
 
-      fetch('/api/search?q=' + encodeURIComponent(input.value.trim()) + '&season=' + encodeURIComponent(activeKey))
-        .then(r => r.json())
-        .then(data => {
-          const seasonData = data.seasons[activeKey] || {};
-          let html = '';
+      var seasonData = data.seasons[activeKey] || {};
+      var html = '';
+      var qualityKeys = Object.keys(seasonData);
 
-          const qualityKeys = Object.keys(seasonData);
-          if (qualityKeys.length === 0) {
-            html = '<div class="empty">该分类无结果</div>';
-          } else {
-            qualityKeys.forEach(q => {
-              html += `<h3 class="quality-header">${q}</h3>`;
-              html += `<div class="result-list">`;
-              seasonData[q].forEach(item => {
-                html += renderCard(item);
-              });
-              html += `</div>`;
-            });
-          }
-
-          tabContent.innerHTML = html;
+      if (qualityKeys.length === 0) {
+        html = '<div class="empty">该分类无结果</div>';
+      } else {
+        qualityKeys.forEach(function(q) {
+          html += '<h3 class="quality-header">' + escapeHtml(q) + '</h3>';
+          html += '<div class="result-list">';
+          seasonData[q].forEach(function(item) {
+            html += renderCard(item);
+          });
+          html += '</div>';
         });
+      }
+
+      tabContent.innerHTML = html;
     }
 
     function renderCard(item) {
-      const season = item.season ? `S${String(item.season).padStart(2, '0')}` : '';
-      const episode = item.episode ? `E${String(item.episode).padStart(2, '0')}` : '';
-      const epLabel = season || episode ? `[${season}${episode ? ' ' + episode : ''}]` : '';
-      const quality = item.quality || '';
-      const sourceType = item.source_type || '';
-      const tags = [quality, sourceType].filter(Boolean).join(' ');
-      const tagHtml = tags ? `<span class="tags">${tags}</span>` : '';
+      var season = item.season ? 'S' + String(item.season).padStart(2, '0') : '';
+      var episode = item.episode ? 'E' + String(item.episode).padStart(2, '0') : '';
+      var epLabel = (season || episode) ? '[' + season + (episode ? ' ' + episode : '') + ']' : '';
+      var tags = [item.quality, item.source_type].filter(Boolean).join(' ');
+      var tagHtml = tags ? '<span class="tags">' + escapeHtml(tags) + '</span>' : '';
 
-      const size = item.size || '';
-      const seeders = item.seeders != null ? `${item.seeders} S` : '';
+      var magnet = item.magnet || '';
+      var size = item.size || '';
+      var seeders = item.seeders != null ? item.seeders + ' S' : '';
 
-      return `
-        <div class="result-card">
-          <div class="card-header">
-            <span class="card-title">${escapeHtml(item.title)}</span>
-            ${tagHtml}
-          </div>
-          <div class="card-meta">
-            <span class="source">${item.source}</span>
-            ${size ? `<span class="size">${size}</span>` : ''}
-            ${seeders ? `<span class="seeders">${seeders}</span>` : ''}
-          </div>
-          <div class="card-actions">
-            <button class="magnet-btn" onclick="copyMagnet('${escapeAttr(item.magnet)}')">复制磁力链接</button>
-          </div>
-        </div>
-      `;
+      return (
+        '<div class="result-card">' +
+          '<div class="card-header">' +
+            '<span class="card-title">' + escapeHtml(item.title) + '</span>' +
+            tagHtml +
+          '</div>' +
+          '<div class="card-meta">' +
+            '<span class="source">' + escapeHtml(item.source) + '</span>' +
+            (size ? '<span class="size">' + escapeHtml(size) + '</span>' : '') +
+            (seeders ? '<span class="seeders">' + seeders + '</span>' : '') +
+          '</div>' +
+          (magnet ? '<div class="card-actions"><button class="magnet-btn" onclick="copyMagnet(\'' + escapeAttr(magnet) + '\')">复制磁力链接</button></div>' : '') +
+        '</div>'
+      );
     }
 
     function copyMagnet(magnet) {
       if (!magnet) return;
-      navigator.clipboard.writeText(magnet).then(() => {
+      navigator.clipboard.writeText(magnet).then(function() {
         alert('磁力链接已复制到剪贴板');
-      }).catch(() => {
+      }).catch(function() {
         window.prompt('手动复制:', magnet);
       });
     }
 
     function escapeHtml(text) {
-      const div = document.createElement('div');
+      var div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
     }
@@ -206,8 +325,8 @@
     }
 
     // Trigger search from URL param
-    const urlParams = new URLSearchParams(window.location.search);
-    const q = urlParams.get('q');
+    var urlParams = new URLSearchParams(window.location.search);
+    var q = urlParams.get('q');
     if (q) {
       input.value = q;
       form.dispatchEvent(new Event('submit'));
