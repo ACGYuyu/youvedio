@@ -23,6 +23,7 @@ Thumbs.db
 # Project
 data/*.json
 data/*.jsonl
+data/cache/
 *.sqlite
 
 # Scrapling browsers
