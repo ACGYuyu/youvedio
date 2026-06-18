@@ -1,5 +1,6 @@
 """Base class for torrent site parsers."""
 
+import logging
 import os
 from abc import ABC, abstractmethod
 
@@ -7,6 +8,17 @@ from scrapling.parser import Selector
 
 from youvedio.config import settings
 from youvedio.models import TorrentResult
+
+# Scrapling creates its own INFO handler — silence it after import
+logging.getLogger("scrapling").setLevel(logging.WARNING)
+for _name in (
+    "scrapling.fetchers",
+    "scrapling.parser",
+    "scrapling.core",
+    "scrapling.engines",
+    "scrapling.engines.toolbelt",
+):
+    logging.getLogger(_name).setLevel(logging.WARNING)
 
 
 class SiteParser(ABC):
