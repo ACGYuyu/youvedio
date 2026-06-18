@@ -29,7 +29,11 @@
 |------|------|------|
 | 2026-06-18 | `feat(scaffold): initial project structure` | 初始化项目骨架 |
 | 2026-06-18 | `style(models): fix Optional→X|None annotations` | Ruff lint 自动修复 |
-| 2026-06-18 | `feat: add search engine discoverer and AI site analyzer` | P7-P8: 搜索引擎发现 + AI 站点分析 |
+| 2026-06-18 | `feat(sources): add 7 built-in site parsers` | 站点解析器基类 + 7 个内置站 |
+| 2026-06-18 | `feat(crawler): add crawler engine with retry and title classifier` | 爬虫引擎 + 分类器 |
+| 2026-06-18 | `feat: add crawler engine, classifier, translation, and Web UI` | P3-P6: 爬虫/分类/翻译/Web |
+| 2026-06-18 | `feat: add search engine discoverer and AI site analyzer` | P7-P8: 发现 + 分析 |
+| 2026-06-18 | `feat(web): add settings page with proxy and AI model config` | 设置界面 |
 
 ---
 
