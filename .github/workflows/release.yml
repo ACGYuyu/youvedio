@@ -28,71 +28,65 @@ jobs:
           ruff check . && ruff format . --check && mypy src/ && pytest -v
 
       - name: Generate changelog
-        id: changelog
         run: |
           PREV=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -z "$PREV" ]; then
-            git log --format="%s" > /tmp/commits.txt
+            RANGE="HEAD"
           else
-            git log --format="%s" $PREV..HEAD > /tmp/commits.txt
+            RANGE="$PREV..HEAD"
           fi
 
-          python3 << 'EOF'
-          import re
+          python3 -c "
+import re, subprocess
+r = subprocess.run(['git', 'log', '--format=%s', '$RANGE'], capture_output=True, text=True)
+commits = [l.strip() for l in r.stdout.split('\n') if l.strip()]
 
-          sections = {
-              "feat": "🚀 Features",
-              "fix": "🐛 Bug Fixes",
-              "refactor": "♻️ Refactoring",
-              "docs": "📝 Documentation",
-              "test": "✅ Tests",
-              "ci": "🔧 CI / Chore",
-              "chore": "🔧 CI / Chore",
-          }
-          order = ["feat", "fix", "refactor", "docs", "test", "ci", "chore"]
-          grouped = {}
+sections = {
+    'feat': '\U0001f680 Features',
+    'fix': '\U0001f41b Bug Fixes',
+    'refactor': '\u267b\ufe0f Refactoring',
+    'docs': '\U0001f4dd Documentation',
+    'test': '\u2705 Tests',
+    'ci': '\U0001f527 CI / Chore',
+    'chore': '\U0001f527 CI / Chore',
+}
+order = ['feat', 'fix', 'refactor', 'docs', 'test', 'ci', 'chore']
+grouped = {}
 
-          with open("/tmp/commits.txt") as f:
-              for line in f:
-                  line = line.strip()
-                  if not line:
-                      continue
-                  matched = False
-                  for prefix in order:
-                      if line.startswith(prefix + "(") or line.startswith(prefix + ":"):
-                          grouped.setdefault(prefix, []).append(line)
-                          matched = True
-                          break
-                  if not matched:
-                      grouped.setdefault("other", []).append(line)
+for line in commits:
+    matched = False
+    for prefix in order:
+        if line.startswith(prefix + '(') or line.startswith(prefix + ':'):
+            grouped.setdefault(prefix, []).append(line)
+            matched = True
+            break
+    if not matched:
+        grouped.setdefault('other', []).append(line)
 
-          lines = ["## What's Changed\n"]
-          for prefix in order:
-              if prefix not in grouped:
-                  continue
-              label = sections.get(prefix, prefix.capitalize())
-              lines.append(f"### {label}")
-              for msg in grouped[prefix]:
-                  msg_clean = re.sub(r"^[^(:]+(\([^)]+\))?:\s*", "", msg).capitalize()
-                  lines.append(f"- {msg_clean}")
-              lines.append("")
+lines = ['## What\'s Changed\n']
+for prefix in order:
+    if prefix not in grouped:
+        continue
+    lines.append(f'### {sections[prefix]}')
+    for msg in grouped[prefix]:
+        clean = re.sub(r'^[^(:]+(\([^)]+\))?:\s*', '', msg)
+        lines.append(f'- {clean.capitalize()}')
+    lines.append('')
 
-          if "other" in grouped:
-              lines.append("### Other")
-              for msg in grouped["other"]:
-                  lines.append(f"- {msg}")
-              lines.append("")
+if 'other' in grouped:
+    lines.append('### Other')
+    for msg in grouped['other']:
+        lines.append(f'- {msg}')
+    lines.append('')
 
-          body = "\n".join(lines).strip()
-          with open("/tmp/changelog.md", "w") as f:
-              f.write(body)
-          EOF
-
-          echo "body<<EOF" >> $GITHUB_OUTPUT
-          cat /tmp/changelog.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+with open('/tmp/changelog.md', 'w') as f:
+    f.write('\n'.join(lines).strip())
+"
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          body: ${{ steps.changelog.outputs.body }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --notes-file /tmp/changelog.md
+        env:
+          GH_TOKEN: ${{ github.token }}
