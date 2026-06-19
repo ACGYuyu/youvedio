@@ -15,7 +15,7 @@ r = subprocess.run(
     ["git", "log", "--format=%s", range_spec],
     capture_output=True, text=True,
 )
-commits = [l.strip() for l in r.stdout.split("\n") if l.strip()]
+commits = [line.strip() for line in r.stdout.split("\n") if line.strip()]
 
 sections = {
     "feat": "Features",
