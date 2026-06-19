@@ -1,6 +1,5 @@
 """Tests for MCP server — tool definitions and core logic."""
 
-import json
 from unittest.mock import MagicMock, patch
 
 from youvedio.mcp_server import _build_quality_summary, _seasons_to_json, _to_dict
