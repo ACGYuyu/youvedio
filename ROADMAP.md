@@ -115,7 +115,7 @@
 
 ---
 
-## v0.1.3 — MCP 返回值优化（待发布）
+## v0.1.3 — MCP 返回值优化（已发布）
 
 **目标**: 消除双层 JSON 编码，让 Agent 直接解析搜索结果，无需 `py -c` 命令或 PowerShell 回退
 
@@ -130,8 +130,8 @@
 
 | 阶段 | 模块 | 文件 | 状态 |
 |------|------|------|------|
-| P1 | 返回类型 `str` → `dict`，消除双层编码 | `mcp_server.py` | ⏳ |
-| P2 | 新增 `summary_text` 纯文本摘要字段（可选） | `mcp_server.py` | ⏳ |
+| P1 | 返回类型 `str` → `dict`，消除双层编码 | `mcp_server.py` | ✅ |
+| P2 | 新增 `summary_text` 纯文本摘要字段（可选） | `mcp_server.py` | ❌ 搁置 |
 
 ### 改动说明
 
@@ -155,6 +155,12 @@
 ```
 
 Agent 无需解析 JSON 即可了解搜索结果。
+
+### 版本日志
+
+| 日期 | 提交 | 说明 |
+|------|------|------|
+| 2026-06-19 | `feat(mcp): change search_torrents return type str -> dict` | v0.1.3 P1 完成，实际验证 1223 条结果 |
 
 ---
 
