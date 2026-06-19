@@ -220,6 +220,28 @@ Agent 无需解析 JSON 即可了解搜索结果。
 
 ---
 
+### P6：集成测试
+
+针对真实网络搜索，验证爬虫引擎端到端可用。只标记 `network` 分组，CI 不跑。
+
+| 阶段 | 模块 | 文件 | 状态 |
+|------|------|------|------|
+| P6 | 集成测试（对已知关键词搜一次） | `tests/test_integration.py` | ⏳ |
+| | quality_summary 结构校验 | 同上 | ⏳ |
+
+**测试内容**：
+- 至少 2 个站点返回结果
+- `quality_summary` 包含 seasons + _unclassified
+- 磁力链接 `info_hash` 格式为 40 位 hex
+- 结果按 seeders 排序（可选，看实际情况）
+
+```bash
+pytest -m network          # 手动跑
+pytest -m "not network"    # CI 跑
+```
+
+---
+
 ### 测试清单
 
 **GenericSiteParser 测试**：
@@ -240,6 +262,8 @@ Agent 无需解析 JSON 即可了解搜索结果。
 | 11 | `test_animegarden_fetch` | mock API 返回 10 条 → 正确 |
 | 12 | `test_animegarden_empty` | API 返回 0 条 → `[]` |
 | 13 | `test_engine_fallback` | mock AnimeGarden 超时 → dmhy 回落触发 |
+| 14 | `test_integration_keyword` | 真实搜索，至少 2 站成功 | `network` |
+| 15 | `test_integration_quality_summary` | quality_summary 结构完整 | `network` |
 
 ---
 
@@ -247,7 +271,8 @@ Agent 无需解析 JSON 即可了解搜索结果。
 
 - P1-P3 迁移完成（5 站 → generic 配置）
 - P4-P5 开发 + 测试完成
-- 原 132 测试全部通过 + 新测试全覆盖
+- P6 集成测试通过（`pytest -m network`）
+- 原 132 测试全部通过（`pytest -m "not network"`）
 - ruff / mypy / pytest 全绿
 
 ### 后续（v0.3.0+）
@@ -263,5 +288,6 @@ Agent 无需解析 JSON 即可了解搜索结果。
 
 - [x] ruff check / ruff format 通过
 - [x] mypy 通过（无新增错误）
-- [x] pytest 通过（覆盖率 > 80%）✅ 84%
+- [x] pytest -m "not network" 通过（覆盖率 > 80%）✅ 84%
+- [x] pytest -m network 通过（集成测试）
 - [ ] 人工确认搜索结果准确性
