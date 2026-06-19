@@ -31,15 +31,13 @@ jobs:
           pytest -v
 
       - name: Generate changelog
-        id: changelog
         run: |
-          python3 .github/scripts/gen_changelog.py | tee /tmp/changelog.md
-          DELIM=$(dd if=/dev/urandom bs=16 count=1 2>/dev/null | base64 | tr -d '=+/')
-          echo "body<<$DELIM" >> "$GITHUB_OUTPUT"
-          cat /tmp/changelog.md >> "$GITHUB_OUTPUT"
-          echo "$DELIM" >> "$GITHUB_OUTPUT"
+          python3 .github/scripts/gen_changelog.py > /tmp/changelog.md
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          body: ${{ steps.changelog.outputs.body }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --notes-file /tmp/changelog.md
+        env:
+          GH_TOKEN: ${{ github.token }}
