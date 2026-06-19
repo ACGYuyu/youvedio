@@ -227,6 +227,31 @@ docker run -d --name flaresolverr --restart unless-stopped -p 8191:8191 -e LOG_L
 
 **不做也不影响核心功能** — 目前 5 个站够用，1337x 多一个不多，少一个不少。
 
+### P8-P9：AnimeGarden Tier 1 聚合
+
+**背景**：`api.animes.garden` 是第三方 BT 资源聚合 API，一次请求覆盖 **dmhy + bangumi.moe + ANi** 三个站点。成熟项目（1077 stars，活跃维护），有 MCP 端点，海外可达。
+
+**方案**：Tier 1 聚合 + Tier 2 回落
+
+| 阶段 | 模块 | 文件 | 状态 |
+|------|------|------|------|
+| P8 | AnimeGardenParser（SiteParser 实现） | `src/youvedio/sources/sites/animegarden.py` | ⏳ |
+| P9 | Engine 两阶段策略（Tier 1 → Tier 2 fallback） | `src/youvedio/crawler/engine.py` | ⏳ |
+| | 配置：sources.json 加 animegarden + fallback 关系 | `sources.json` | ⏳ |
+| | 测试：mock API 响应，fallback 触发/不触发 | `tests/test_animegarden.py` | ⏳ |
+| | 线上验证 | ✅ 已验证（API 返回 66KB，有结果） | |
+
+**AnimeGardenParser**：
+- `fetch()`: `GET /resources?search={keyword}&limit=50`
+- `parse()`: 映射 `items[]` → `TorrentResult`（provider 标记来源）
+- 无需 CSS 选择器，JSON 直取
+
+**Engine 两阶段**：
+1. **Phase 1** — 并发跑全部 Tier 1（nyaa + mikan + tokyotosho + animegarden）
+2. **Phase 2** — 如果 AnimeGarden 返回 0 条或超时，回落跑 dmhy + bangumi parser
+
+**去重**：按 `info_hash` 去重，Engine 层 `relevance_sort` 后哈希去重
+
 ### 后续（v0.3.0+）
 
 - RSS mode（subsplease.org 等 RSS 站点）
