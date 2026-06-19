@@ -11,6 +11,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -25,7 +27,72 @@ jobs:
         run: |
           ruff check . && ruff format . --check && mypy src/ && pytest -v
 
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV" ]; then
+            git log --format="%s" > /tmp/commits.txt
+          else
+            git log --format="%s" $PREV..HEAD > /tmp/commits.txt
+          fi
+
+          python3 << 'EOF'
+          import re
+
+          sections = {
+              "feat": "🚀 Features",
+              "fix": "🐛 Bug Fixes",
+              "refactor": "♻️ Refactoring",
+              "docs": "📝 Documentation",
+              "test": "✅ Tests",
+              "ci": "🔧 CI / Chore",
+              "chore": "🔧 CI / Chore",
+          }
+          order = ["feat", "fix", "refactor", "docs", "test", "ci", "chore"]
+          grouped = {}
+
+          with open("/tmp/commits.txt") as f:
+              for line in f:
+                  line = line.strip()
+                  if not line:
+                      continue
+                  matched = False
+                  for prefix in order:
+                      if line.startswith(prefix + "(") or line.startswith(prefix + ":"):
+                          grouped.setdefault(prefix, []).append(line)
+                          matched = True
+                          break
+                  if not matched:
+                      grouped.setdefault("other", []).append(line)
+
+          lines = ["## What's Changed\n"]
+          for prefix in order:
+              if prefix not in grouped:
+                  continue
+              label = sections.get(prefix, prefix.capitalize())
+              lines.append(f"### {label}")
+              for msg in grouped[prefix]:
+                  msg_clean = re.sub(r"^[^(:]+(\([^)]+\))?:\s*", "", msg).capitalize()
+                  lines.append(f"- {msg_clean}")
+              lines.append("")
+
+          if "other" in grouped:
+              lines.append("### Other")
+              for msg in grouped["other"]:
+                  lines.append(f"- {msg}")
+              lines.append("")
+
+          body = "\n".join(lines).strip()
+          with open("/tmp/changelog.md", "w") as f:
+              f.write(body)
+          EOF
+
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          cat /tmp/changelog.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body: ${{ steps.changelog.outputs.body }}
