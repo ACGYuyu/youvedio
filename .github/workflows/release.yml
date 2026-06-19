@@ -11,6 +11,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -25,7 +27,66 @@ jobs:
         run: |
           ruff check . && ruff format . --check && mypy src/ && pytest -v
 
+      - name: Generate changelog
+        run: |
+          PREV=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="$PREV..HEAD"
+          fi
+
+          python3 -c "
+import re, subprocess
+r = subprocess.run(['git', 'log', '--format=%s', '$RANGE'], capture_output=True, text=True)
+commits = [l.strip() for l in r.stdout.split('\n') if l.strip()]
+
+sections = {
+    'feat': '\U0001f680 Features',
+    'fix': '\U0001f41b Bug Fixes',
+    'refactor': '\u267b\ufe0f Refactoring',
+    'docs': '\U0001f4dd Documentation',
+    'test': '\u2705 Tests',
+    'ci': '\U0001f527 CI / Chore',
+    'chore': '\U0001f527 CI / Chore',
+}
+order = ['feat', 'fix', 'refactor', 'docs', 'test', 'ci', 'chore']
+grouped = {}
+
+for line in commits:
+    matched = False
+    for prefix in order:
+        if line.startswith(prefix + '(') or line.startswith(prefix + ':'):
+            grouped.setdefault(prefix, []).append(line)
+            matched = True
+            break
+    if not matched:
+        grouped.setdefault('other', []).append(line)
+
+lines = ['## What\'s Changed\n']
+for prefix in order:
+    if prefix not in grouped:
+        continue
+    lines.append(f'### {sections[prefix]}')
+    for msg in grouped[prefix]:
+        clean = re.sub(r'^[^(:]+(\([^)]+\))?:\s*', '', msg)
+        lines.append(f'- {clean.capitalize()}')
+    lines.append('')
+
+if 'other' in grouped:
+    lines.append('### Other')
+    for msg in grouped['other']:
+        lines.append(f'- {msg}')
+    lines.append('')
+
+with open('/tmp/changelog.md', 'w') as f:
+    f.write('\n'.join(lines).strip())
+"
+
       - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --notes-file /tmp/changelog.md
+        env:
+          GH_TOKEN: ${{ github.token }}
