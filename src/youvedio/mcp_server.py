@@ -77,7 +77,7 @@ def _build_quality_summary(seasons) -> dict:
         "for quick overview. Results cached for 10 minutes."
     ),
 )
-def search_torrents(keyword: str) -> str:
+def search_torrents(keyword: str) -> dict:
     """Search all known torrent sites for a keyword.
 
     Args:
@@ -90,7 +90,7 @@ def search_torrents(keyword: str) -> str:
     cache_key = f"search:{keyword.strip().lower()}"
     cached = cache_get(cache_key)
     if cached:
-        return json.dumps(cached, ensure_ascii=False)
+        return cached
 
     settings.apply_proxy()
 
@@ -112,7 +112,7 @@ def search_torrents(keyword: str) -> str:
     }
 
     cache_set(cache_key, payload)
-    return json.dumps(payload, ensure_ascii=False)
+    return payload
 
 
 @server.resource(

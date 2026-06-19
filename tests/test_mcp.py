@@ -95,7 +95,7 @@ def test_search_torrents_calls_engine(_mock_set, mock_get, mock_engine_cls):
     _mock_search(mock_get, mock_engine_cls)
     from youvedio.mcp_server import search_torrents
 
-    result = json.loads(search_torrents("test"))
+    result = search_torrents("test")
     assert result["keyword"] == "test"
     assert "seasons" in result
     assert "quality_summary" in result
@@ -109,7 +109,7 @@ def test_search_torrents_uses_cache(_mock_set, mock_get, mock_engine_cls):
     _mock_search(mock_get, mock_engine_cls, cache_value=cached)
     from youvedio.mcp_server import search_torrents
 
-    result = json.loads(search_torrents("test"))
+    result = search_torrents("test")
     assert result["keyword"] == "cached"
     mock_engine_cls.assert_not_called()
 
@@ -131,7 +131,7 @@ def test_search_torrents_includes_quality_summary(_mock_set, mock_get, mock_engi
     _mock_search(mock_get, mock_engine_cls, results=[r])
     from youvedio.mcp_server import search_torrents
 
-    result = json.loads(search_torrents("Show"))
+    result = search_torrents("Show")
     assert result["total"] == 1
     assert "S04" in result["quality_summary"]
     assert result["quality_summary"]["S04"]["1080P"]["total"] == 1
