@@ -6,14 +6,16 @@ import sys
 
 prev = subprocess.run(
     ["git", "describe", "--tags", "--abbrev=0", "HEAD^"],
-    capture_output=True, text=True,
+    capture_output=True,
+    text=True,
 ).stdout.strip()
 
 range_spec = prev + "..HEAD" if prev else "HEAD"
 
 r = subprocess.run(
     ["git", "log", "--format=%s", range_spec],
-    capture_output=True, text=True,
+    capture_output=True,
+    text=True,
 )
 commits = [line.strip() for line in r.stdout.split("\n") if line.strip()]
 
